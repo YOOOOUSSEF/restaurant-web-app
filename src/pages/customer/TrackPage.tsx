@@ -5,6 +5,7 @@ import { useI18nContext } from "@/i18n/I18nContext";
 import { useAuth } from "@/hooks/useAuth";
 import StatusBadge from "@/components/StatusBadge";
 import { motion, AnimatePresence } from "framer-motion";
+import { isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
 import {
   Search,
   Clock,
@@ -82,14 +83,20 @@ export default function TrackPage() {
   // Phone-based active orders lookup
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneTrigger, setPhoneTrigger] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const { data: activeOrders, isLoading: activeLoading } = trpc.order.getActiveByPhone.useQuery(
     { phone: phoneTrigger },
     { enabled: !!phoneTrigger }
   );
 
   const handlePhoneLookup = () => {
-    const trimmed = phoneInput.trim();
-    if (trimmed) setPhoneTrigger(trimmed);
+    const normalized = normalizeSaudiMobileNumber(phoneInput.trim());
+    if (isSaudiMobileNumber(normalized)) {
+      setPhoneError("");
+      setPhoneTrigger(normalized);
+      return;
+    }
+    setPhoneError(isAr ? "رقم الجوال يجب أن يكون بصيغة +966 5X XXX XXXX" : "Phone number must be in the format +966 5X XXX XXXX");
   };
 
   const { data: order, isLoading } = trpc.order.getByNumber.useQuery(
@@ -200,13 +207,18 @@ export default function TrackPage() {
               <input
                 type="tel"
                 value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
+                onChange={(e) => {
+                  setPhoneInput(e.target.value.replace(/[^\d+ ]/g, ""));
+                  if (phoneError) setPhoneError("");
+                }}
                 onKeyDown={(e) => e.key === "Enter" && handlePhoneLookup()}
-                placeholder={isAr ? "05xxxxxxxx" : "05xxxxxxxx"}
+                placeholder={isAr ? "+966 5xx xxx xxxx" : "+966 5xx xxx xxxx"}
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[#D4C8B8] bg-[#FDFAF6] text-[#2D2420] focus:outline-none focus:ring-2 focus:ring-[#C75C2E] focus:border-transparent text-sm"
                 dir="ltr"
+                inputMode="tel"
               />
             </div>
+            {phoneError ? <p className="mt-2 text-xs text-[#C0392B]">{phoneError}</p> : null}
             <button
               onClick={handlePhoneLookup}
               disabled={!phoneInput.trim()}

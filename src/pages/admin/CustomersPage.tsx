@@ -21,6 +21,7 @@ import {
   Tag,
   ChevronRight,
 } from "lucide-react";
+import { isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────
 type Tab = "customers" | "coupons" | "reviews";
@@ -87,6 +88,7 @@ export default function CustomersPage() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [customerForm, setCustomerForm] = useState<CustomerForm>(defaultCustomerForm);
+  const [phoneError, setPhoneError] = useState("");
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [couponForm, setCouponForm] = useState<CouponForm>(defaultCouponForm);
   const [confirmDelete, setConfirmDelete] = useState<{ type: "customer" | "coupon"; id: number } | null>(null);
@@ -138,6 +140,7 @@ export default function CustomersPage() {
   function openAddCustomer() {
     setEditingCustomer(null);
     setCustomerForm(defaultCustomerForm);
+    setPhoneError("");
     setShowCustomerModal(true);
   }
 
@@ -151,6 +154,7 @@ export default function CustomersPage() {
       address: customer.address ?? "",
       loyaltyPoints: String(customer.loyaltyPoints ?? 0),
     });
+    setPhoneError("");
     setShowCustomerModal(true);
   }
 
@@ -158,15 +162,22 @@ export default function CustomersPage() {
     setShowCustomerModal(false);
     setEditingCustomer(null);
     setCustomerForm(defaultCustomerForm);
+    setPhoneError("");
   }
 
   function handleCustomerSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const normalizedPhone = normalizeSaudiMobileNumber(customerForm.phone);
+    if (!isSaudiMobileNumber(normalizedPhone)) {
+      setPhoneError(isAr ? "رقم الجوال يجب أن يكون بصيغة +966 5X XXX XXXX" : "Phone number must be in the format +966 5X XXX XXXX");
+      return;
+    }
+    setPhoneError("");
     if (editingCustomer) {
       updateCustomer.mutate({
         id: editingCustomer.id,
         name: customerForm.name || undefined,
-        phone: customerForm.phone || undefined,
+        phone: normalizedPhone || undefined,
         email: customerForm.email || undefined,
         address: customerForm.address || undefined,
         loyaltyPoints: customerForm.loyaltyPoints ? Number(customerForm.loyaltyPoints) : undefined,
@@ -174,7 +185,7 @@ export default function CustomersPage() {
     } else {
       createCustomer.mutate({
         name: customerForm.name,
-        phone: customerForm.phone,
+        phone: normalizedPhone,
         email: customerForm.email || undefined,
         address: customerForm.address || undefined,
       });
@@ -694,10 +705,15 @@ export default function CustomersPage() {
                   <input
                     required
                     value={customerForm.phone}
-                    onChange={(e) => setCustomerForm((f) => ({ ...f, phone: e.target.value }))}
+                    onChange={(e) => {
+                      setCustomerForm((f) => ({ ...f, phone: e.target.value.replace(/[^\d+ ]/g, "") }));
+                      if (phoneError) setPhoneError("");
+                    }}
                     className={inputCls}
                     placeholder="+966 5x xxx xxxx"
+                    inputMode="tel"
                   />
+                  {phoneError ? <p className="mt-1 text-xs text-[#C0392B]">{phoneError}</p> : null}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#5C4D44] mb-1">

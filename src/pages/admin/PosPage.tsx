@@ -3,6 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
 import { motion } from "framer-motion";
 import { Plus, Minus, Trash2, Receipt } from "lucide-react";
+import { isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
 
 interface PosItem {
   productId: number;
@@ -19,6 +20,7 @@ export default function PosPage() {
   const [lastOrderNumber, setLastOrderNumber] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const utils = trpc.useUtils();
 
   const { data: categories } = trpc.menu.listCategories.useQuery();
@@ -67,15 +69,22 @@ export default function PosPage() {
   const handleCompleteSale = async () => {
     if (cart.length === 0) return;
     if (!customerName.trim() || !customerPhone.trim()) {
-      alert(lang === "ar" ? "من فضلك أدخل الاسم ورقم الهاتف" : "Please enter customer name and phone");
+      setPhoneError(lang === "ar" ? "من فضلك أدخل الاسم ورقم الهاتف" : "Please enter customer name and phone");
       return;
     }
+
+    const normalizedPhone = normalizeSaudiMobileNumber(customerPhone);
+    if (!isSaudiMobileNumber(normalizedPhone)) {
+      setPhoneError(lang === "ar" ? "رقم الجوال يجب أن يكون بصيغة +966 5X XXX XXXX" : "Phone number must be in the format +966 5X XXX XXXX");
+      return;
+    }
+    setPhoneError("");
 
     setIsCompleting(true);
     try {
       const result = await createOrder.mutateAsync({
         customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
+        customerPhone: normalizedPhone,
         customerEmail: undefined,
         customerAddress: undefined,
         deliveryAreaId: undefined,
@@ -97,6 +106,7 @@ export default function PosPage() {
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
+      setPhoneError("");
       setLastOrderNumber(result.orderNumber);
       void utils.order.list.invalidate();
       void utils.dashboard.getStats.invalidate();
@@ -219,10 +229,15 @@ export default function PosPage() {
             <input
               type="tel"
               value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              placeholder={lang === "ar" ? "رقم الهاتف" : "Phone number"}
+              onChange={(e) => {
+                setCustomerPhone(e.target.value.replace(/[^\d+ ]/g, ""));
+                if (phoneError) setPhoneError("");
+              }}
+              placeholder={lang === "ar" ? "+966 5xx xxx xxxx" : "+966 5xx xxx xxxx"}
               className="w-full px-3 py-2 rounded-lg border border-[#D4C8B8] text-sm focus:outline-none focus:ring-2 focus:ring-[#C75C2E]"
+              inputMode="tel"
             />
+            {phoneError ? <p className="mt-1 text-xs text-[#C0392B]">{phoneError}</p> : null}
           </div>
 
           {/* Payment */}

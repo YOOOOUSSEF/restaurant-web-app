@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
@@ -18,6 +18,7 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
+import { isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
 
 const paymentIcons: Record<string, React.ReactNode> = {
   mada: <CreditCard size={20} />,
@@ -126,7 +127,12 @@ export default function CheckoutPage() {
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponStatus, setCouponStatus] = useState<"idle" | "loading" | "valid" | "invalid">("idle");
   const [couponError, setCouponError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [addressError, setAddressError] = useState("");
+  const [areaError, setAreaError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const formSectionRef = useRef<HTMLDivElement>(null);
 
   const couponQuery = trpc.customer.validateCoupon.useQuery(
     { code: couponInput.toUpperCase(), orderAmount: subtotal },
@@ -184,6 +190,12 @@ export default function CheckoutPage() {
     setCouponError("");
   }
 
+  const scrollToCheckoutForm = () => {
+    requestAnimationFrame(() => {
+      formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   // ── Totals ────────────────────────────────────────────────
   const deliveryFee =
     form.orderType === "delivery" && form.deliveryAreaId
@@ -198,11 +210,50 @@ export default function CheckoutPage() {
   // ── Submit ────────────────────────────────────────────────
   const handleSubmit = async () => {
     const resolvedName = form.customerName.trim() || user?.name || "Guest";
-    const resolvedPhone = form.customerPhone.trim() || (user as any)?.phone || "0000000000";
+    const rawPhone = form.customerPhone.trim();
+    const normalizedPhone = normalizeSaudiMobileNumber(rawPhone);
+    const resolvedPhone = isSaudiMobileNumber(normalizedPhone) ? normalizedPhone : "";
 
-    if (enabledPaymentMethods.length === 0) return;
-    if (!paymentMethodAvailability[form.paymentMethod]) return;
-    if (form.orderType === "delivery" && (!form.customerAddress || !form.deliveryAreaId)) return;
+    const hasName = !!form.customerName.trim();
+    const hasAddress = !!form.customerAddress.trim();
+    const hasArea = !!form.deliveryAreaId;
+
+    if (!hasName) {
+      setNameError(isAr ? "الاسم مطلوب" : "Name is required");
+      scrollToCheckoutForm();
+      return;
+    }
+    setNameError("");
+
+    if (enabledPaymentMethods.length === 0) {
+      scrollToCheckoutForm();
+      return;
+    }
+    if (!paymentMethodAvailability[form.paymentMethod]) {
+      scrollToCheckoutForm();
+      return;
+    }
+    if (form.orderType === "delivery") {
+      if (!hasAddress) {
+        setAddressError(isAr ? "العنوان مطلوب" : "Address is required");
+        scrollToCheckoutForm();
+        return;
+      }
+      setAddressError("");
+
+      if (!hasArea) {
+        setAreaError(isAr ? "اختر منطقة التوصيل" : "Select a delivery area");
+        scrollToCheckoutForm();
+        return;
+      }
+      setAreaError("");
+    }
+    if (!resolvedPhone) {
+      setPhoneError(isAr ? "رقم الجوال يجب أن يكون بصيغة +966 5X XXX XXXX" : "Phone number must be in the format +966 5X XXX XXXX");
+      scrollToCheckoutForm();
+      return;
+    }
+    setPhoneError("");
 
     setIsSubmitting(true);
     try {
@@ -244,6 +295,7 @@ export default function CheckoutPage() {
       navigate(`/track?order=${result.orderNumber}`);
     } catch (err) {
       console.error("Order creation failed:", err);
+      scrollToCheckoutForm();
       alert(isAr ? "تعذر إنشاء الطلب. جرّب مرة أخرى." : "Unable to place the order. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -264,6 +316,7 @@ export default function CheckoutPage() {
 
   return (
     <motion.div
+      ref={formSectionRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-3xl mx-auto"
@@ -290,10 +343,14 @@ export default function CheckoutPage() {
             <input
               type="text"
               value={form.customerName}
-              onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, customerName: e.target.value });
+                if (nameError) setNameError("");
+              }}
               className={inputCls}
               placeholder="John Doe"
             />
+            {nameError ? <p className="mt-1 text-xs text-[#C0392B]">{nameError}</p> : null}
           </div>
           <div>
             <label className="block text-sm font-medium text-[#5C4D44] mb-1.5">
@@ -302,10 +359,22 @@ export default function CheckoutPage() {
             <input
               type="tel"
               value={form.customerPhone}
-              onChange={(e) => setForm({ ...form, customerPhone: e.target.value })}
+              onChange={(e) => {
+                const next = e.target.value.replace(/[^\d+ ]/g, "");
+                setForm({ ...form, customerPhone: next });
+                if (phoneError) setPhoneError("");
+              }}
               className={inputCls}
               placeholder="+966 50 000 0000"
+              inputMode="tel"
             />
+            {phoneError ? (
+              <p className="mt-1 text-xs text-[#C0392B]">{phoneError}</p>
+            ) : (
+              <p className="mt-1 text-xs text-[#8B7A6E]">
+                {isAr ? "المدخل يجب أن يطابق: +966 5X XXX XXXX" : "Must match: +966 5X XXX XXXX"}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-[#5C4D44] mb-1.5">
@@ -342,10 +411,14 @@ export default function CheckoutPage() {
               <input
                 type="text"
                 value={form.customerAddress}
-                onChange={(e) => setForm({ ...form, customerAddress: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, customerAddress: e.target.value });
+                  if (addressError) setAddressError("");
+                }}
                 className={inputCls}
                 placeholder="123 Main St"
               />
+              {addressError ? <p className="mt-1 text-xs text-[#C0392B]">{addressError}</p> : null}
             </div>
             <div>
               <label className="block text-sm font-medium text-[#5C4D44] mb-1.5">
@@ -353,7 +426,10 @@ export default function CheckoutPage() {
               </label>
               <select
                 value={form.deliveryAreaId}
-                onChange={(e) => setForm({ ...form, deliveryAreaId: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, deliveryAreaId: e.target.value });
+                  if (areaError) setAreaError("");
+                }}
                 className={inputCls}
               >
                 <option value="">{t.selectArea}</option>
@@ -363,6 +439,7 @@ export default function CheckoutPage() {
                   </option>
                 ))}
               </select>
+              {areaError ? <p className="mt-1 text-xs text-[#C0392B]">{areaError}</p> : null}
             </div>
           </div>
         )}
