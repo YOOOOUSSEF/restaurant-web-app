@@ -104,7 +104,34 @@ export const orderRouter = createRouter({
  
       return { ...orderRows[0], items, history };
     }),
- 
+
+  // Get active orders by customer phone (for customer self-lookup)
+  getActiveByPhone: publicQuery
+    .input(z.object({ phone: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const rows = await db
+        .select({
+          id: orders.id,
+          orderNumber: orders.orderNumber,
+          status: orders.status,
+          orderType: orders.orderType,
+          total: orders.total,
+          createdAt: orders.createdAt,
+          customerName: orders.customerName,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.customerPhone, input.phone),
+            // exclude terminal statuses
+            sql`${orders.status} NOT IN ('completed', 'cancelled')`
+          )
+        )
+        .orderBy(desc(orders.createdAt));
+      return rows;
+    }),
+
   // Create order
   create: publicQuery
     .input(

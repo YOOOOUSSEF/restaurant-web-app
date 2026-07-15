@@ -18,6 +18,9 @@ import {
   MessageSquare,
   Send,
   ThumbsUp,
+  Phone,
+  ListOrdered,
+  ArrowRight,
 } from "lucide-react";
 
 const statusSteps = [
@@ -75,6 +78,19 @@ export default function TrackPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [orderNumber, setOrderNumber] = useState(searchParams.get("order") || "");
   const [searchTrigger, setSearchTrigger] = useState(searchParams.get("order") || "");
+
+  // Phone-based active orders lookup
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneTrigger, setPhoneTrigger] = useState("");
+  const { data: activeOrders, isLoading: activeLoading } = trpc.order.getActiveByPhone.useQuery(
+    { phone: phoneTrigger },
+    { enabled: !!phoneTrigger }
+  );
+
+  const handlePhoneLookup = () => {
+    const trimmed = phoneInput.trim();
+    if (trimmed) setPhoneTrigger(trimmed);
+  };
 
   const { data: order, isLoading } = trpc.order.getByNumber.useQuery(
     { orderNumber: searchTrigger },
@@ -161,7 +177,133 @@ export default function TrackPage() {
     <div className="max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold text-[#2D2420] mb-6">{t.trackYourOrder}</h2>
 
-      {/* ── Search ── */}
+      {/* ── Phone-based Active Orders Lookup ── */}
+      <div className="mb-8 bg-white rounded-2xl border border-[#E8DFD3] shadow-sm overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-[#C75C2E]/10 to-[#D4A017]/10 border-b border-[#E8DFD3]">
+          <div className="w-9 h-9 rounded-full bg-[#C75C2E]/15 flex items-center justify-center">
+            <ListOrdered size={18} className="text-[#C75C2E]" />
+          </div>
+          <div>
+            <p className="font-semibold text-[#2D2420] text-sm">
+              {isAr ? "متابعة طلباتي" : "My Active Orders"}
+            </p>
+            <p className="text-xs text-[#8B7A6E]">
+              {isAr ? "أدخل رقم جوالك لعرض طلباتك النشطة" : "Enter your phone number to view your active orders"}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B7A6E]" />
+              <input
+                type="tel"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handlePhoneLookup()}
+                placeholder={isAr ? "05xxxxxxxx" : "05xxxxxxxx"}
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[#D4C8B8] bg-[#FDFAF6] text-[#2D2420] focus:outline-none focus:ring-2 focus:ring-[#C75C2E] focus:border-transparent text-sm"
+                dir="ltr"
+              />
+            </div>
+            <button
+              onClick={handlePhoneLookup}
+              disabled={!phoneInput.trim()}
+              className="px-5 py-2.5 bg-[#C75C2E] text-white rounded-xl font-semibold text-sm hover:bg-[#A84A22] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <Search size={15} />
+              {isAr ? "بحث" : "Search"}
+            </button>
+          </div>
+
+          {/* Results */}
+          <AnimatePresence>
+            {phoneTrigger && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-4 overflow-hidden"
+              >
+                {activeLoading ? (
+                  <div className="flex justify-center py-6">
+                    <div className="w-6 h-6 border-2 border-[#C75C2E] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : activeOrders && activeOrders.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-[#8B7A6E] mb-3">
+                      {isAr
+                        ? `${activeOrders.length} طلب نشط`
+                        : `${activeOrders.length} active order${activeOrders.length !== 1 ? "s" : ""}`}
+                    </p>
+                    {activeOrders.map((o) => (
+                      <motion.button
+                        key={o.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        onClick={() => {
+                          setOrderNumber(o.orderNumber);
+                          setSearchTrigger(o.orderNumber);
+                          setSearchParams({ order: o.orderNumber });
+                        }}
+                        className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-[#FDFAF6] hover:bg-[#F5F0E8] border border-[#E8DFD3] rounded-xl transition-colors text-left group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#C75C2E]/10 flex items-center justify-center shrink-0">
+                            <Package size={15} className="text-[#C75C2E]" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-[#2D2420] text-sm">{o.orderNumber}</p>
+                            <p className="text-xs text-[#8B7A6E]">
+                              {new Date(o.createdAt!).toLocaleDateString(isAr ? "ar-SA" : "en-US", {
+                                day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                            o.status === "new" ? "bg-blue-50 text-blue-600" :
+                            o.status === "accepted" ? "bg-purple-50 text-purple-600" :
+                            o.status === "preparing" ? "bg-orange-50 text-orange-600" :
+                            o.status === "ready" ? "bg-green-50 text-green-600" :
+                            o.status === "out_for_delivery" || o.status === "on_the_way" ? "bg-teal-50 text-teal-600" :
+                            o.status === "delivered" ? "bg-emerald-50 text-emerald-600" :
+                            "bg-gray-50 text-gray-500"
+                          }`}>
+                            {isAr ? {
+                              new: "جديد", accepted: "مقبول", preparing: "يُحضَّر",
+                              ready: "جاهز", out_for_delivery: "في الطريق",
+                              on_the_way: "في الطريق", driver_assigned: "سائق معيّن",
+                              delivered: "تم التوصيل",
+                            }[o.status] ?? o.status : {
+                              new: "New", accepted: "Accepted", preparing: "Preparing",
+                              ready: "Ready", out_for_delivery: "Out for Delivery",
+                              on_the_way: "On the Way", driver_assigned: "Driver Assigned",
+                              delivered: "Delivered",
+                            }[o.status] ?? o.status}
+                          </span>
+                          <ArrowRight size={14} className="text-[#8B7A6E] group-hover:translate-x-0.5 transition-transform" />
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-[#8B7A6E]">
+                    <Clock size={28} className="mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">
+                      {isAr ? "لا توجد طلبات نشطة لهذا الرقم" : "No active orders found for this number"}
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* ── Search by Order Number ── */}
       <div className="flex gap-3 mb-8">
         <input
           type="text"
