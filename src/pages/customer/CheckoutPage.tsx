@@ -310,14 +310,26 @@ export default function CheckoutPage() {
           <div>
             <label className="block text-sm font-medium text-[#5C4D44] mb-1.5">
               {t.email}
+              {isAuthenticated && user?.email && (
+                <span className="ml-2 inline-flex items-center gap-1 text-xs text-[#6B7F3E] font-normal">
+                  <CheckCircle2 size={11} />
+                  {isAr ? "موثّق" : "Verified"}
+                </span>
+              )}
             </label>
             <input
               type="email"
               value={form.customerEmail}
               onChange={(e) => setForm({ ...form, customerEmail: e.target.value })}
-              className={inputCls}
+              readOnly={isAuthenticated && !!user?.email}
+              className={`${inputCls} ${isAuthenticated && user?.email ? "bg-[#F5F0E8] text-[#8B7A6E] cursor-not-allowed select-none" : ""}`}
               placeholder="email@example.com"
             />
+            {isAuthenticated && user?.email && (
+              <p className="mt-1 text-xs text-[#8B7A6E]">
+                {isAr ? "البريد الإلكتروني مرتبط بحسابك ولا يمكن تغييره." : "This email is linked to your account and cannot be changed."}
+              </p>
+            )}
           </div>
         </div>
 

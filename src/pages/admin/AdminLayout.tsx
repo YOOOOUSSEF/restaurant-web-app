@@ -9,11 +9,8 @@ import {
   UtensilsCrossed,
   CookingPot,
   Package,
-  Truck,
   Users,
-  Megaphone,
   BarChart3,
-  UserCog,
   Settings,
   LogOut,
   Menu,
@@ -28,11 +25,8 @@ const navItems = [
   { path: "/admin/menu", label: "menu", icon: <UtensilsCrossed size={18} /> },
   { path: "/admin/pos", label: "pos", icon: <CookingPot size={18} /> },
   { path: "/admin/inventory", label: "inventory", icon: <Package size={18} /> },
-  { path: "/admin/procurement", label: "procurement", icon: <Truck size={18} /> },
   { path: "/admin/customers", label: "customers", icon: <Users size={18} /> },
-  { path: "/admin/marketing", label: "marketing", icon: <Megaphone size={18} /> },
   { path: "/admin/reports", label: "reports", icon: <BarChart3 size={18} /> },
-  { path: "/admin/users", label: "users", icon: <UserCog size={18} /> },
   { path: "/admin/settings", label: "settings", icon: <Settings size={18} /> },
 ];
 

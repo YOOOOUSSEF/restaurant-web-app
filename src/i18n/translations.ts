@@ -56,7 +56,7 @@ export const translations = {
     customerInfo: "Customer Information",
     fullName: "Full Name",
     phone: "Phone Number",
-    email: "Email (optional)",
+    email: "Email",
     address: "Address",
     selectArea: "Select Delivery Area",
     orderType: "Order Type",
