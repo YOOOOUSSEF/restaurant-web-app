@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
 import { createRouter, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import {
@@ -182,6 +184,7 @@ export const restaurantRouter = createRouter({
         descriptionEn: z.string().optional().default(""),
         descriptionAr: z.string().optional().default(""),
         price: z.string().default("0.00"),
+        imageUrl: z.string().optional().default(""),
         isActive: z.boolean().optional().default(true),
       })
     )
@@ -197,6 +200,7 @@ export const restaurantRouter = createRouter({
           descriptionEn: input.descriptionEn || null,
           descriptionAr: input.descriptionAr || null,
           price: input.price,
+          imageUrl: input.imageUrl || null,
           isActive: input.isActive,
         })
         .$returningId();
@@ -208,6 +212,16 @@ export const restaurantRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
+      const rows = await db.select().from(offers).where(eq(offers.id, input.id)).limit(1);
+      const offer = rows[0];
+      if (offer?.imageUrl?.startsWith("/uploads/")) {
+        const filePath = path.resolve(process.cwd(), offer.imageUrl.slice(1));
+        try {
+          await fs.promises.unlink(filePath);
+        } catch (err) {
+          console.warn("Failed to delete offer image:", err);
+        }
+      }
       await db.delete(offers).where(eq(offers.id, input.id));
       return { success: true };
     }),

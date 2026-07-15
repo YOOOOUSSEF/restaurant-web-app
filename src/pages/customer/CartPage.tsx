@@ -57,15 +57,11 @@ export default function CartPage() {
               transition={{ delay: index * 0.05 }}
               className="flex items-center gap-4 bg-white rounded-xl p-4 border border-[#E8DFD3] shadow-sm"
             >
-              {item.itemType === "product" ? (
-                <img
-                  src={item.imageUrl || "/burger-classic.jpg"}
-                  alt={item.nameEn}
-                  className="w-20 h-20 object-cover rounded-lg"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-lg bg-[#F5F0E8] border border-dashed border-[#D4C8B8]" />
-              )}
+              <img
+                src={item.imageUrl || "/burger-classic.jpg"}
+                alt={item.nameEn}
+                className="w-20 h-20 object-cover rounded-lg"
+              />
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-[#2D2420] truncate">
                   {item.nameEn}

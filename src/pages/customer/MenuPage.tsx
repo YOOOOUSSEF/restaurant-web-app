@@ -71,7 +71,7 @@ export default function MenuPage() {
       nameEn: offer.nameEn,
       nameAr: offer.nameAr,
       price: parseFloat(offer.price),
-      imageUrl: undefined,
+      imageUrl: offer.imageUrl || "",
     });
 
     const key = getCartKey("offer", offer.id);
@@ -130,8 +130,11 @@ export default function MenuPage() {
             {offers.map((offer) => (
               <div
                 key={offer.id}
-                className="bg-gradient-to-r from-[#C75C2E] to-[#A84A22] rounded-xl p-4 text-white shadow-lg"
+                className="bg-gradient-to-r from-[#C75C2E] to-[#A84A22] rounded-xl p-4 text-white shadow-lg overflow-hidden"
               >
+                {offer.imageUrl ? (
+                  <img src={offer.imageUrl} alt={lang === "ar" ? offer.nameAr : offer.nameEn} className="w-full h-32 object-cover rounded-lg mb-3" />
+                ) : null}
                 <h3 className="font-bold text-lg">
                   {lang === "ar" ? offer.nameAr : offer.nameEn}
                 </h3>

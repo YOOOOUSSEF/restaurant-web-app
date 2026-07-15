@@ -137,6 +137,7 @@ export const offers = mysqlTable("offers", {
   descriptionEn: varchar("description_en", { length: 255 }),
   descriptionAr: varchar("description_ar", { length: 255 }),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  imageUrl: varchar("image_url", { length: 255 }),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });

@@ -27,6 +27,8 @@ export default function MenuManagementPage() {
     descriptionEn: "",
     descriptionAr: "",
     price: "0.00",
+    imageUrl: "",
+    imageFile: null as File | null,
   });
 
   const utils = trpc.useUtils();
@@ -47,7 +49,7 @@ export default function MenuManagementPage() {
   const createOffer = trpc.restaurant.createOffer.useMutation({
     onSuccess: () => {
       void utils.restaurant.listAllOffers.invalidate();
-      setOfferForm({ code: "", nameEn: "", nameAr: "", descriptionEn: "", descriptionAr: "", price: "0.00" });
+      setOfferForm({ code: "", nameEn: "", nameAr: "", descriptionEn: "", descriptionAr: "", price: "0.00", imageUrl: "", imageFile: null });
     },
   });
   const deleteOffer = trpc.restaurant.deleteOffer.useMutation({
@@ -270,10 +272,36 @@ export default function MenuManagementPage() {
               <input value={offerForm.descriptionEn} onChange={(e) => setOfferForm({ ...offerForm, descriptionEn: e.target.value })} placeholder={lang === "ar" ? "الوصف بالإنجليزية" : "Description (EN)"} className="rounded-lg border border-[#D4C8B8] px-3 py-2" />
               <input value={offerForm.descriptionAr} onChange={(e) => setOfferForm({ ...offerForm, descriptionAr: e.target.value })} placeholder={lang === "ar" ? "الوصف بالعربية" : "Description (AR)"} className="rounded-lg border border-[#D4C8B8] px-3 py-2" />
               <input value={offerForm.price} onChange={(e) => setOfferForm({ ...offerForm, price: e.target.value })} placeholder={lang === "ar" ? "السعر" : "Price"} className="rounded-lg border border-[#D4C8B8] px-3 py-2" />
+              <div className="flex flex-col gap-2 md:col-span-2">
+                <label className="text-sm text-[#5C4D44]">{lang === "ar" ? "صورة العرض" : "Offer image"}</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setOfferForm({ ...offerForm, imageFile: e.target.files?.[0] ?? null })}
+                  className="rounded-lg border border-[#D4C8B8] px-3 py-2"
+                />
+              </div>
             </div>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!offerForm.nameEn || !offerForm.nameAr) return;
+
+                let imageUrl = offerForm.imageUrl;
+                if (offerForm.imageFile) {
+                  const formData = new FormData();
+                  formData.append("file", offerForm.imageFile);
+                  const response = await fetch("/api/upload", {
+                    method: "POST",
+                    body: formData,
+                  });
+                  const data = await response.json();
+                  if (response.ok && data.url) {
+                    imageUrl = data.url;
+                  } else {
+                    console.error("Offer image upload failed", data);
+                  }
+                }
+
                 createOffer.mutate({
                   code: offerForm.code || undefined,
                   nameEn: offerForm.nameEn,
@@ -281,6 +309,7 @@ export default function MenuManagementPage() {
                   descriptionEn: offerForm.descriptionEn,
                   descriptionAr: offerForm.descriptionAr,
                   price: offerForm.price,
+                  imageUrl,
                 });
               }}
               className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#C75C2E] px-3 py-2 text-sm font-medium text-white"
@@ -293,10 +322,10 @@ export default function MenuManagementPage() {
             {offers?.map((offer) => (
               <div
                 key={offer.id}
-                className="bg-gradient-to-br from-[#C75C2E] to-[#A84A22] rounded-xl p-5 text-white shadow-lg"
+                className="bg-gradient-to-br from-[#C75C2E] to-[#A84A22] rounded-xl p-5 text-white shadow-lg overflow-hidden"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="font-bold text-lg">{lang === "ar" ? offer.nameAr : offer.nameEn}</h3>
                     <p className="text-white/80 text-sm mt-1">{lang === "ar" ? offer.descriptionAr : offer.descriptionEn}</p>
                   </div>
@@ -308,6 +337,9 @@ export default function MenuManagementPage() {
                     <Trash2 size={16} />
                   </button>
                 </div>
+                {offer.imageUrl ? (
+                  <img src={offer.imageUrl} alt={lang === "ar" ? offer.nameAr : offer.nameEn} className="w-full h-32 object-cover rounded-lg mt-3" />
+                ) : null}
                 <div className="flex items-center justify-between mt-4">
                   <span className="text-2xl font-bold">{offer.price} SAR</span>
                   <span className={`text-xs px-2 py-1 rounded-full ${offer.isActive ? "bg-white/20" : "bg-black/20"}`}>
