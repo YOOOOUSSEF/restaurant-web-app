@@ -14,6 +14,7 @@ import {
   stockMovements,
   coupons,
   customers,
+  restaurants,
 } from "@db/schema";
  
 function generateOrderNumber(): string {
@@ -72,7 +73,7 @@ export const orderRouter = createRouter({
       const db = getDb();
       const orderRows = await db.select().from(orders).where(eq(orders.id, input.id)).limit(1);
       if (!orderRows[0]) return null;
- 
+
       const items = await db.select().from(orderItems).where(eq(orderItems.orderId, input.id));
       const history = await db
         .select()
@@ -104,34 +105,7 @@ export const orderRouter = createRouter({
  
       return { ...orderRows[0], items, history };
     }),
-
-  // Get active orders by customer phone (for customer self-lookup)
-  getActiveByPhone: publicQuery
-    .input(z.object({ phone: z.string().min(1) }))
-    .query(async ({ input }) => {
-      const db = getDb();
-      const rows = await db
-        .select({
-          id: orders.id,
-          orderNumber: orders.orderNumber,
-          status: orders.status,
-          orderType: orders.orderType,
-          total: orders.total,
-          createdAt: orders.createdAt,
-          customerName: orders.customerName,
-        })
-        .from(orders)
-        .where(
-          and(
-            eq(orders.customerPhone, input.phone),
-            // exclude terminal statuses
-            sql`${orders.status} NOT IN ('completed', 'cancelled')`
-          )
-        )
-        .orderBy(desc(orders.createdAt));
-      return rows;
-    }),
-
+ 
   // Create order
   create: publicQuery
     .input(
@@ -147,13 +121,29 @@ export const orderRouter = createRouter({
         items: z.array(
           z.object({
             itemType: z.enum(["product", "offer"]).optional(),
-            productId: z.number().optional(),
-            offerId: z.number().optional(),
+            code: z.string().optional(),
+            productId: z.number().optional().nullable(),
+            offerId: z.number().optional().nullable(),
             quantity: z.number().min(1),
             selectedOptions: z.string().optional(),
             selectedAdditions: z.string().optional(),
             notes: z.string().optional(),
-            code: z.string().optional(),
+          }).superRefine((item, ctx) => {
+            const resolvedItemType = item.itemType ?? (item.offerId ? "offer" : "product");
+            if (resolvedItemType === "offer" && (item.offerId == null || item.offerId === undefined)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "offerId is required for offer items",
+                path: ["offerId"],
+              });
+            }
+            if (resolvedItemType === "product" && (item.productId == null || item.productId === undefined)) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "productId is required for product items",
+                path: ["productId"],
+              });
+            }
           })
         ),
         couponCode: z.string().optional(),
@@ -164,51 +154,65 @@ export const orderRouter = createRouter({
       const db = getDb();
  
       // Calculate totals
+      type OrderItemSource = {
+        nameEn: string;
+        nameAr: string;
+        price?: string;
+        basePrice?: string;
+      };
+
       let subtotal = 0;
-      const orderItemsData: any[] = [];
+      const orderItemsData = [];
  
       for (const item of input.items) {
-        const resolvedType = item.itemType ?? (item.offerId ? "offer" : "product");
-
-        if (resolvedType === "offer" && item.offerId) {
+        let itemRow: OrderItemSource | null = null;
+        const itemType: "product" | "offer" = item.itemType ?? (item.offerId ? "offer" : "product");
+        let productId: number | null = null;
+        let offerId: number | null = null;
+        let unitPrice = 0;
+        let productNameEn = "";
+        let productNameAr = "";
+        let itemCode = item.code?.trim();
+ 
+        if (itemType === "offer" && item.offerId) {
           const offerRows = await db.select().from(offers).where(eq(offers.id, item.offerId)).limit(1);
-          if (!offerRows[0]) continue;
-          const unitPrice = parseFloat(offerRows[0].price);
-          const itemTotal = unitPrice * item.quantity;
-          subtotal += itemTotal;
-          orderItemsData.push({
-            itemType: "offer" as const,
-            offerId: item.offerId,
-            code: item.code ?? offerRows[0].code,
-            productNameEn: offerRows[0].nameEn,
-            productNameAr: offerRows[0].nameAr,
-            quantity: item.quantity,
-            unitPrice: offerRows[0].price,
-            totalPrice: itemTotal.toFixed(2),
-            selectedOptions: item.selectedOptions,
-            selectedAdditions: item.selectedAdditions,
-            notes: item.notes,
-          });
-        } else if (item.productId) {
+          itemRow = offerRows[0] ?? null;
+          if (!itemRow) continue;
+          offerId = item.offerId;
+          productNameEn = itemRow.nameEn;
+          productNameAr = itemRow.nameAr;
+          unitPrice = parseFloat(String(itemRow.price ?? "0"));
+          itemCode = itemCode || offerRows[0]?.code || `offer-${item.offerId}`;
+        } else if (itemType === "product" && item.productId) {
           const productRows = await db.select().from(products).where(eq(products.id, item.productId)).limit(1);
-          if (!productRows[0]) continue;
-          const unitPrice = parseFloat(productRows[0].basePrice);
-          const itemTotal = unitPrice * item.quantity;
-          subtotal += itemTotal;
-          orderItemsData.push({
-            itemType: "product" as const,
-            productId: item.productId,
-            code: item.code ?? productRows[0].code,
-            productNameEn: productRows[0].nameEn,
-            productNameAr: productRows[0].nameAr,
-            quantity: item.quantity,
-            unitPrice: productRows[0].basePrice,
-            totalPrice: itemTotal.toFixed(2),
-            selectedOptions: item.selectedOptions,
-            selectedAdditions: item.selectedAdditions,
-            notes: item.notes,
-          });
+          itemRow = productRows[0] ?? null;
+          if (!itemRow) continue;
+          productId = item.productId;
+          productNameEn = itemRow.nameEn;
+          productNameAr = itemRow.nameAr;
+          unitPrice = parseFloat(String(itemRow.basePrice ?? "0"));
+          itemCode = itemCode || `product-${item.productId}`;
+        } else {
+          continue;
         }
+ 
+        const itemTotal = unitPrice * item.quantity;
+        subtotal += itemTotal;
+ 
+        orderItemsData.push({
+          itemType,
+          code: itemCode,
+          productId,
+          offerId,
+          productNameEn,
+          productNameAr,
+          quantity: item.quantity,
+          unitPrice: unitPrice.toFixed(2),
+          totalPrice: itemTotal.toFixed(2),
+          selectedOptions: item.selectedOptions,
+          selectedAdditions: item.selectedAdditions,
+          notes: item.notes,
+        });
       }
  
       // Get delivery fee
@@ -218,8 +222,11 @@ export const orderRouter = createRouter({
         if (areaRows[0]) deliveryFee = parseFloat(areaRows[0].fee);
       }
  
-      // Calculate tax (15%)
-      const taxAmount = subtotal * 0.15;
+      const restaurantProfileRows = await db.select().from(restaurants).limit(1);
+      const restaurantTaxRate = restaurantProfileRows[0]?.taxRate
+        ? parseFloat(String(restaurantProfileRows[0].taxRate)) / 100
+        : 0.15;
+      const taxAmount = subtotal * restaurantTaxRate;
  
       // Apply coupon if provided
       let discountAmount = 0;
@@ -280,9 +287,9 @@ export const orderRouter = createRouter({
         notes: "Order placed",
       });
  
-      // Deduct inventory (only for product items)
+      // Deduct inventory only for products with recipes
       for (const item of input.items) {
-        if (!item.productId) continue;
+        if (item.itemType !== "product" || !item.productId) continue;
         const recipeRows = await db.select().from(recipes).where(eq(recipes.productId, item.productId));
         for (const recipe of recipeRows) {
           if (!recipe.inventoryItemId) continue;
@@ -305,7 +312,7 @@ export const orderRouter = createRouter({
         }
       }
  
-      // Upsert customer record by phone
+      // Ensure customer exists without applying completed-order totals yet.
       const existingCustomer = await db
         .select()
         .from(customers)
@@ -313,23 +320,17 @@ export const orderRouter = createRouter({
         .limit(1);
  
       if (existingCustomer[0]) {
-        // Update existing customer stats
+        // Preserve customer profile details only.
         await db
           .update(customers)
           .set({
-            totalOrders: sql`COALESCE(total_orders, 0) + 1`,
-            totalSpent: sql`CAST(COALESCE(total_spent, 0) AS DECIMAL(10,2)) + ${total}`,
-            loyaltyPoints: sql`FLOOR(CAST(COALESCE(total_spent, 0) AS DECIMAL(10,2)) + ${total})`,
-            // Update name/email if provided
             ...(input.customerName ? { name: input.customerName } : {}),
             ...(input.customerEmail ? { email: input.customerEmail } : {}),
+            ...(input.customerAddress ? { address: input.customerAddress } : {}),
           })
           .where(eq(customers.phone, input.customerPhone));
       } else {
-        // Create new customer record automatically.
-        // Derive the next code from the highest existing code's number,
-        // NOT from row count (row count breaks after any deletion and
-        // can produce a code that's already taken).
+        // Create new customer record now; totals are assigned when the order is completed.
         const lastCustomer = await db
           .select({ code: customers.code })
           .from(customers)
@@ -349,9 +350,9 @@ export const orderRouter = createRouter({
           phone: input.customerPhone,
           email: input.customerEmail,
           address: input.customerAddress,
-          totalOrders: 1,
-          totalSpent: total.toFixed(2),
-          loyaltyPoints: Math.floor(total),
+          totalOrders: 0,
+          totalSpent: "0.00",
+          loyaltyPoints: 0,
         });
       }
  
@@ -374,10 +375,64 @@ export const orderRouter = createRouter({
     .mutation(async ({ input }) => {
       const db = getDb();
  
+      const orderRows = await db.select().from(orders).where(eq(orders.id, input.id)).limit(1);
+      if (!orderRows[0]) {
+        return { success: false, message: "Order not found" };
+      }
+ 
+      const previousStatus = orderRows[0].status;
+      const shouldApplyCompletion = input.status === "completed" && previousStatus !== "completed" && previousStatus !== "cancelled";
+ 
       await db
         .update(orders)
         .set({ status: input.status, updatedAt: new Date() })
         .where(eq(orders.id, input.id));
+ 
+      if (shouldApplyCompletion) {
+        const order = orderRows[0];
+        const totalValue = parseFloat(order.total || "0");
+ 
+        const existingCustomer = await db
+          .select()
+          .from(customers)
+          .where(eq(customers.phone, order.customerPhone))
+          .limit(1);
+ 
+        if (existingCustomer[0]) {
+          await db
+            .update(customers)
+            .set({
+              totalOrders: sql`COALESCE(total_orders, 0) + 1`,
+              totalSpent: sql`CAST(COALESCE(total_spent, 0) AS DECIMAL(10,2)) + ${totalValue}`,
+              loyaltyPoints: sql`FLOOR(CAST(COALESCE(total_spent, 0) AS DECIMAL(10,2)) + ${totalValue})`,
+            })
+            .where(eq(customers.phone, order.customerPhone));
+        } else {
+          const lastCustomer = await db
+            .select({ code: customers.code })
+            .from(customers)
+            .orderBy(desc(customers.id))
+            .limit(1);
+ 
+          let nextNum = 1;
+          if (lastCustomer[0]?.code) {
+            const match = lastCustomer[0].code.match(/(\d+)$/);
+            if (match) nextNum = parseInt(match[1], 10) + 1;
+          }
+          const code = `CUS${String(nextNum).padStart(4, "0")}`;
+ 
+          await db.insert(customers).values({
+            code,
+            name: order.customerName,
+            phone: order.customerPhone,
+            email: order.customerEmail,
+            address: order.customerAddress,
+            totalOrders: 1,
+            totalSpent: order.total,
+            loyaltyPoints: sql`FLOOR(CAST(${totalValue} AS DECIMAL(10,2)))`,
+          });
+        }
+      }
  
       await db.insert(orderStatusHistory).values({
         orderId: input.id,

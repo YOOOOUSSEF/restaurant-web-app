@@ -4,8 +4,8 @@ import { translations, type Lang, type Translations } from "./translations";
 const STORAGE_KEY = "urbanbites-lang";
 
 function getStoredLang(): Lang {
-  if (typeof window === "undefined") return "en";
-  return (localStorage.getItem(STORAGE_KEY) as Lang) || "en";
+  if (typeof window === "undefined") return "ar";
+  return (localStorage.getItem(STORAGE_KEY) as Lang) || "ar";
 }
 
 export function useI18n() {
