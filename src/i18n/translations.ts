@@ -92,6 +92,7 @@ export const translations = {
 
     // Admin Dashboard
     totalOrders: "Total Orders",
+    totalRevenue: "Total Revenue",
     revenue: "Revenue",
     activeCustomers: "Active Customers",
     lowStockAlerts: "Low Stock Alerts",
@@ -213,6 +214,7 @@ export const translations = {
 
     // Admin Dashboard
     totalOrders: "إجمالي الطلبات",
+    totalRevenue: "إجمالي الإيرادات",
     revenue: "المبيعات",
     activeCustomers: "العملاء النشطون",
     lowStockAlerts: "تنبيهات المخزون",
