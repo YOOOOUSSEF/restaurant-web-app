@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc, sql, like, or } from "drizzle-orm";
+import { eq, and, desc, sql, like, or, inArray } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import {
@@ -15,6 +15,7 @@ import {
   coupons,
   customers,
   restaurants,
+  invoices,
 } from "@db/schema";
  
 function generateOrderNumber(): string {
@@ -547,5 +548,61 @@ export const orderRouter = createRouter({
       todayRevenue: todayRevenue.toFixed(2),
       statusCounts,
     };
+  }),
+
+  // ── Delete a single order (only cancelled or completed) ──
+  deleteOne: publicQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+
+      const orderRows = await db.select().from(orders).where(eq(orders.id, input.id)).limit(1);
+      if (!orderRows[0]) return { success: false, message: "Order not found" };
+
+      const { status } = orderRows[0];
+      if (status !== "cancelled" && status !== "completed" && status !== "delivered") {
+        return { success: false, message: "Only cancelled, delivered, or completed orders can be deleted" };
+      }
+
+      // Cascade: history → items → invoices → order
+      await db.delete(orderStatusHistory).where(eq(orderStatusHistory.orderId, input.id));
+      await db.delete(orderItems).where(eq(orderItems.orderId, input.id));
+      await db.delete(invoices).where(eq(invoices.orderId, input.id));
+      await db.delete(orders).where(eq(orders.id, input.id));
+
+      return { success: true };
+    }),
+
+  // ── Delete all cancelled orders ──
+  deleteAllCancelled: publicQuery.mutation(async () => {
+    const db = getDb();
+
+    const cancelledOrders = await db
+      .select({ id: orders.id })
+      .from(orders)
+      .where(eq(orders.status, "cancelled"));
+
+    if (cancelledOrders.length === 0) return { success: true, deleted: 0 };
+
+    const ids = cancelledOrders.map((o) => o.id);
+
+    await db.delete(orderStatusHistory).where(inArray(orderStatusHistory.orderId, ids));
+    await db.delete(orderItems).where(inArray(orderItems.orderId, ids));
+    await db.delete(invoices).where(inArray(invoices.orderId, ids));
+    await db.delete(orders).where(inArray(orders.id, ids));
+
+    return { success: true, deleted: ids.length };
+  }),
+
+  // ── Delete ALL orders (nuclear option) ──
+  deleteAll: publicQuery.mutation(async () => {
+    const db = getDb();
+
+    await db.delete(orderStatusHistory);
+    await db.delete(orderItems);
+    await db.delete(invoices);
+    await db.delete(orders);
+
+    return { success: true };
   }),
 });
