@@ -17,8 +17,47 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Lock,
+  ShieldCheck,
 } from "lucide-react";
 import { isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
+
+// ── Visa card helpers ─────────────────────────────────────────
+function formatCardNumber(raw: string) {
+  return raw
+    .replace(/\D/g, "")
+    .slice(0, 16)
+    .replace(/(\d{4})/g, "$1 ")
+    .trim();
+}
+
+function formatExpiry(raw: string) {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return digits;
+}
+
+function detectCardBrand(num: string): "visa" | "mastercard" | "amex" | "unknown" {
+  const n = num.replace(/\s/g, "");
+  if (/^4/.test(n)) return "visa";
+  if (/^5[1-5]/.test(n)) return "mastercard";
+  if (/^3[47]/.test(n)) return "amex";
+  return "unknown";
+}
+
+const BRAND_LABEL: Record<string, string> = {
+  visa: "VISA",
+  mastercard: "Mastercard",
+  amex: "Amex",
+  unknown: "",
+};
+
+const BRAND_COLOR: Record<string, string> = {
+  visa: "#1A1F71",
+  mastercard: "#EB001B",
+  amex: "#007BC1",
+  unknown: "#8B7A6E",
+};
 
 const paymentIcons: Record<string, React.ReactNode> = {
   mada: <CreditCard size={20} />,
@@ -62,6 +101,14 @@ export default function CheckoutPage() {
     paymentMethod: "mada" as "mada" | "apple_pay" | "stc_pay" | "visa" | "cash",
     notes: "",
   });
+
+  // ── Visa card state ───────────────────────────────────────
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
+  const [cvvFlipped, setCvvFlipped] = useState(false);
 
   const paymentMethodAvailability = useMemo(() => {
     const paymentSettings: Record<string, boolean> = {
@@ -207,6 +254,28 @@ export default function CheckoutPage() {
   const discountAmount = appliedCoupon?.discountAmount ?? 0;
   const total = subtotal + tax + deliveryFee - discountAmount;
 
+  // ── Validate Visa card fields ────────────────────────────
+  const validateCardFields = (): boolean => {
+    if (form.paymentMethod !== "visa") return true;
+    const errs: Record<string, string> = {};
+    const rawNum = cardNumber.replace(/\s/g, "");
+    if (rawNum.length < 13 || rawNum.length > 19)
+      errs.cardNumber = isAr ? "رقم البطاقة غير صالح" : "Invalid card number";
+    if (!cardName.trim())
+      errs.cardName = isAr ? "اسم حامل البطاقة مطلوب" : "Cardholder name required";
+    const [mm, yy] = cardExpiry.split("/");
+    const month = parseInt(mm);
+    const year = 2000 + parseInt(yy || "0");
+    const now = new Date();
+    if (!mm || !yy || month < 1 || month > 12 || year < now.getFullYear() ||
+      (year === now.getFullYear() && month < now.getMonth() + 1))
+      errs.cardExpiry = isAr ? "تاريخ انتهاء غير صالح" : "Invalid expiry date";
+    if (cardCvv.length < 3)
+      errs.cardCvv = isAr ? "رمز CVV غير صالح" : "Invalid CVV";
+    setCardErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   // ── Submit ────────────────────────────────────────────────
   const handleSubmit = async () => {
     const resolvedName = form.customerName.trim() || user?.name || "Guest";
@@ -254,6 +323,11 @@ export default function CheckoutPage() {
       return;
     }
     setPhoneError("");
+
+    if (!validateCardFields()) {
+      scrollToCheckoutForm();
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -516,6 +590,175 @@ export default function CheckoutPage() {
               : "No payment methods are currently available. Please enable them in the store settings."}
           </p>
         )}
+
+        {/* ── Visa Card Form ── */}
+        <AnimatePresence>
+          {form.paymentMethod === "visa" && paymentMethodAvailability.visa && (
+            <motion.div
+              key="visa-form"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="overflow-hidden"
+            >
+              <div className="mt-5 pt-5 border-t border-[#E8DFD3]">
+                {/* Mini card preview */}
+                <div
+                  className="relative h-36 rounded-2xl mb-5 overflow-hidden shadow-lg"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #1A1F71 0%, #3b4db8 50%, #6B7AE8 100%)",
+                  }}
+                >
+                  {/* Shimmer */}
+                  <div className="absolute inset-0 opacity-20" style={{ background: "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.4) 0%, transparent 60%)" }} />
+                  {/* Chip */}
+                  <div className="absolute top-5 left-5 w-9 h-6 rounded-md bg-yellow-300/80 border border-yellow-400/60 flex items-center justify-center">
+                    <div className="w-5 h-4 rounded-sm border border-yellow-500/60 grid grid-cols-2 gap-px p-0.5">
+                      <div className="bg-yellow-500/60 rounded-sm" />
+                      <div className="bg-yellow-500/60 rounded-sm" />
+                      <div className="bg-yellow-500/60 rounded-sm" />
+                      <div className="bg-yellow-500/60 rounded-sm" />
+                    </div>
+                  </div>
+                  {/* Brand */}
+                  <div
+                    className="absolute top-4 right-5 text-sm font-black tracking-widest"
+                    style={{ color: BRAND_COLOR[detectCardBrand(cardNumber)] || "white", textShadow: "0 1px 4px rgba(0,0,0,0.3)" }}
+                  >
+                    {BRAND_LABEL[detectCardBrand(cardNumber)] || "CARD"}
+                  </div>
+                  {/* Number */}
+                  <div className="absolute bottom-9 left-5 right-5 font-mono text-white text-sm tracking-[0.2em] drop-shadow">
+                    {cardNumber || "•••• •••• •••• ••••"}
+                  </div>
+                  {/* Name + Expiry */}
+                  <div className="absolute bottom-3 left-5 right-5 flex justify-between items-end">
+                    <span className="text-white/80 text-[10px] uppercase tracking-wider truncate max-w-[60%]">
+                      {cardName || (isAr ? "اسم حامل البطاقة" : "CARDHOLDER NAME")}
+                    </span>
+                    <span className="text-white/80 text-[10px] font-mono">
+                      {cardExpiry || "MM/YY"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Fields */}
+                <div className="space-y-3">
+                  {/* Card Number */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#5C4D44] mb-1.5 flex items-center gap-1.5">
+                      <CreditCard size={14} className="text-[#C75C2E]" />
+                      {isAr ? "رقم البطاقة" : "Card Number"}
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={cardNumber}
+                      onChange={(e) => {
+                        setCardNumber(formatCardNumber(e.target.value));
+                        if (cardErrors.cardNumber) setCardErrors((p) => ({ ...p, cardNumber: "" }));
+                      }}
+                      placeholder="1234 5678 9012 3456"
+                      maxLength={19}
+                      className={`${inputCls} font-mono tracking-wider ${
+                        cardErrors.cardNumber ? "border-red-300 bg-red-50" : ""
+                      }`}
+                      dir="ltr"
+                    />
+                    {cardErrors.cardNumber && (
+                      <p className="mt-1 text-xs text-[#C0392B]">{cardErrors.cardNumber}</p>
+                    )}
+                  </div>
+
+                  {/* Cardholder Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-[#5C4D44] mb-1.5">
+                      {isAr ? "اسم حامل البطاقة" : "Cardholder Name"}
+                    </label>
+                    <input
+                      type="text"
+                      value={cardName}
+                      onChange={(e) => {
+                        setCardName(e.target.value.toUpperCase());
+                        if (cardErrors.cardName) setCardErrors((p) => ({ ...p, cardName: "" }));
+                      }}
+                      placeholder={isAr ? "الاسم كما هو على البطاقة" : "NAME AS ON CARD"}
+                      className={`${inputCls} uppercase ${
+                        cardErrors.cardName ? "border-red-300 bg-red-50" : ""
+                      }`}
+                    />
+                    {cardErrors.cardName && (
+                      <p className="mt-1 text-xs text-[#C0392B]">{cardErrors.cardName}</p>
+                    )}
+                  </div>
+
+                  {/* Expiry + CVV */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-[#5C4D44] mb-1.5">
+                        {isAr ? "تاريخ الانتهاء" : "Expiry Date"}
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={cardExpiry}
+                        onChange={(e) => {
+                          setCardExpiry(formatExpiry(e.target.value));
+                          if (cardErrors.cardExpiry) setCardErrors((p) => ({ ...p, cardExpiry: "" }));
+                        }}
+                        placeholder="MM/YY"
+                        maxLength={5}
+                        className={`${inputCls} font-mono ${
+                          cardErrors.cardExpiry ? "border-red-300 bg-red-50" : ""
+                        }`}
+                        dir="ltr"
+                      />
+                      {cardErrors.cardExpiry && (
+                        <p className="mt-1 text-xs text-[#C0392B]">{cardErrors.cardExpiry}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#5C4D44] mb-1.5 flex items-center gap-1">
+                        {isAr ? "رمز CVV" : "CVV"}
+                        <Lock size={11} className="text-[#8B7A6E]" />
+                      </label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        value={cardCvv}
+                        onChange={(e) => {
+                          setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4));
+                          if (cardErrors.cardCvv) setCardErrors((p) => ({ ...p, cardCvv: "" }));
+                        }}
+                        onFocus={() => setCvvFlipped(true)}
+                        onBlur={() => setCvvFlipped(false)}
+                        placeholder="•••"
+                        maxLength={4}
+                        className={`${inputCls} font-mono ${
+                          cardErrors.cardCvv ? "border-red-300 bg-red-50" : ""
+                        }`}
+                        dir="ltr"
+                      />
+                      {cardErrors.cardCvv && (
+                        <p className="mt-1 text-xs text-[#C0392B]">{cardErrors.cardCvv}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Security note */}
+                  <div className="flex items-center gap-2 text-[11px] text-[#8B7A6E] mt-1">
+                    <ShieldCheck size={13} className="text-[#6B7F3E] shrink-0" />
+                    {isAr
+                      ? "بياناتك محمية ومشفرة بالكامل — لا يتم حفظ معلومات بطاقتك"
+                      : "Your data is fully encrypted & secure — card info is never stored"}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── Coupon ── */}

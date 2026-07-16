@@ -17,6 +17,7 @@ import {
   restaurants,
   invoices,
 } from "@db/schema";
+import { canUpdateOrderStatus, isDeletableOrderStatus, isTerminalOrderStatus } from "../order-status-guards";
  
 function generateOrderNumber(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -442,11 +443,16 @@ export const orderRouter = createRouter({
       }
  
       const previousStatus = orderRows[0].status;
-      const shouldApplyCompletion = input.status === "completed" && previousStatus !== "completed" && previousStatus !== "cancelled";
+      const normalizedStatus = input.status === "delivered" ? "completed" : input.status;
+      if (!canUpdateOrderStatus(previousStatus, normalizedStatus)) {
+        return { success: false, message: "This order is already in a terminal state and can no longer be changed" };
+      }
+
+      const shouldApplyCompletion = normalizedStatus === "completed" && previousStatus !== "completed" && previousStatus !== "cancelled";
  
       await db
         .update(orders)
-        .set({ status: input.status, updatedAt: new Date() })
+        .set({ status: normalizedStatus, updatedAt: new Date() })
         .where(eq(orders.id, input.id));
  
       if (shouldApplyCompletion) {
@@ -497,8 +503,8 @@ export const orderRouter = createRouter({
  
       await db.insert(orderStatusHistory).values({
         orderId: input.id,
-        status: input.status,
-        notes: input.notes ?? `Status updated to ${input.status}`,
+        status: normalizedStatus,
+        notes: input.notes ?? `Status updated to ${normalizedStatus}`,
       });
  
       return { success: true };
@@ -560,8 +566,8 @@ export const orderRouter = createRouter({
       if (!orderRows[0]) return { success: false, message: "Order not found" };
 
       const { status } = orderRows[0];
-      if (status !== "cancelled" && status !== "completed" && status !== "delivered") {
-        return { success: false, message: "Only cancelled, delivered, or completed orders can be deleted" };
+      if (!isDeletableOrderStatus(status)) {
+        return { success: false, message: "Only completed or cancelled orders can be deleted" };
       }
 
       // Cascade: history → items → invoices → order

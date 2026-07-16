@@ -10,7 +10,6 @@ import {
   CookingPot,
   Package,
   Users,
-  BarChart3,
   Settings,
   LogOut,
   Menu,
@@ -26,7 +25,6 @@ const navItems = [
   { path: "/admin/pos", label: "pos", icon: <CookingPot size={18} /> },
   { path: "/admin/inventory", label: "inventory", icon: <Package size={18} /> },
   { path: "/admin/customers", label: "customers", icon: <Users size={18} /> },
-  { path: "/admin/reports", label: "reports", icon: <BarChart3 size={18} /> },
   { path: "/admin/settings", label: "settings", icon: <Settings size={18} /> },
 ];
 

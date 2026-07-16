@@ -15,18 +15,20 @@ import {
   Trash2,
   AlertTriangle,
   XCircle,
+  Printer,
 } from "lucide-react";
+import { printBill } from "@/components/BillPrint";
 
 const statusActions = [
   { status: "accepted", label: "Accept", icon: <CheckCircle size={14} /> },
   { status: "preparing", label: "Start Prep", icon: <ChefHat size={14} /> },
   { status: "ready", label: "Mark Ready", icon: <PackageCheck size={14} /> },
   { status: "out_for_delivery", label: "Out for Delivery", icon: <Truck size={14} /> },
-  { status: "delivered", label: "Delivered", icon: <CheckCircle size={14} /> },
+  { status: "completed", label: "Complete", icon: <CheckCircle size={14} /> },
   { status: "cancelled", label: "Cancel", icon: <Ban size={14} /> },
 ];
 
-const DELETABLE_STATUSES = new Set(["cancelled", "completed", "delivered"]);
+const DELETABLE_STATUSES = new Set(["cancelled", "completed"]);
 
 // ── Confirmation Dialog ────────────────────────────────────
 interface ConfirmDialogProps {
@@ -217,6 +219,12 @@ export default function OrdersPage() {
   });
 
   const handleStatusUpdate = (orderId: number, status: string) => {
+    const currentOrder = orders?.find((order) => order.id === orderId);
+    const currentStatus = currentOrder?.status;
+    if (currentStatus && ["completed", "cancelled"].includes(currentStatus)) {
+      showFeedback(isAr ? "لا يمكن تعديل الطلب بعد اكتماله أو إلغائه" : "This order can no longer be changed", "error");
+      return;
+    }
     updateStatus.mutate({ id: orderId, status: status as any });
   };
 
@@ -287,7 +295,6 @@ export default function OrdersPage() {
           <option value="preparing">{t.status_preparing}</option>
           <option value="ready">{t.status_ready}</option>
           <option value="out_for_delivery">{t.status_out_for_delivery}</option>
-          <option value="delivered">{t.status_delivered}</option>
           <option value="completed">{t.status_completed}</option>
           <option value="cancelled">{t.status_cancelled}</option>
         </select>
@@ -298,8 +305,8 @@ export default function OrdersPage() {
         <p className="text-xs text-[#8B7A6E] mb-3 flex items-center gap-1.5">
           <Trash2 size={12} />
           {isAr
-            ? `${deletableCount} طلب قابل للحذف (ملغي / منتهي / مكتمل)`
-            : `${deletableCount} order${deletableCount !== 1 ? "s" : ""} eligible for deletion (cancelled / delivered / completed)`}
+            ? `${deletableCount} طلب قابل للحذف (ملغي / مكتمل)`
+            : `${deletableCount} order${deletableCount !== 1 ? "s" : ""} eligible for deletion (cancelled / completed)`}
         </p>
       )}
 
@@ -367,7 +374,7 @@ export default function OrdersPage() {
                           </div>
                         )}
 
-                        {/* Delete button for completed/cancelled/delivered */}
+                        {/* Delete button for completed/cancelled */}
                         {isDeletable && (
                           <motion.button
                             whileHover={{ scale: 1.1 }}
@@ -433,6 +440,37 @@ export default function OrdersPage() {
                   <StatusBadge status={orderDetail.status} />
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Print Bill */}
+                  <button
+                    onClick={() =>
+                      printBill({
+                        orderNumber: orderDetail.orderNumber,
+                        orderType: orderDetail.orderType,
+                        customerName: orderDetail.customerName,
+                        customerPhone: orderDetail.customerPhone,
+                        customerAddress: orderDetail.customerAddress,
+                        paymentMethod: orderDetail.paymentMethod,
+                        items: (orderDetail.items ?? []).map((item: any) => ({
+                          name: isAr ? item.productNameAr : item.productNameEn,
+                          quantity: item.quantity,
+                          unitPrice: parseFloat(item.unitPrice ?? item.totalPrice),
+                          totalPrice: parseFloat(item.totalPrice),
+                        })),
+                        subtotal: parseFloat(orderDetail.subtotal || "0"),
+                        tax: parseFloat(orderDetail.taxAmount || "0"),
+                        deliveryFee: parseFloat(orderDetail.deliveryFee || "0"),
+                        total: parseFloat(orderDetail.total || "0"),
+                        createdAt: orderDetail.createdAt,
+                        lang: isAr ? "ar" : "en",
+                      })
+                    }
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4A7FB5]/10 border border-[#4A7FB5]/20 text-[#4A7FB5] text-xs font-medium hover:bg-[#4A7FB5]/20 transition-colors"
+                    title={isAr ? "طباعة الفاتورة" : "Print bill"}
+                  >
+                    <Printer size={13} />
+                    {isAr ? "طباعة" : "Print"}
+                  </button>
+
                   {/* Delete from modal for eligible orders */}
                   {DELETABLE_STATUSES.has(orderDetail.status) && (
                     <button

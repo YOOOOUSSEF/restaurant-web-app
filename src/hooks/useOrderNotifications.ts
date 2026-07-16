@@ -118,7 +118,8 @@ interface UseOrderNotificationsOptions {
 
 /**
  * Detects order status changes and emits notifications.
- * First load silently records the current status (no toast).
+ * First load silently records the current status (no toast)
+ * EXCEPT for "new" and "accepted" which immediately notify the customer.
  * Subsequent changes fire a toast + browser notification.
  */
 export function useOrderStatusChange({
@@ -149,12 +150,18 @@ export function useOrderStatusChange({
     if (isFirstLoadRef.current) {
       prevStatusRef.current = status;
       isFirstLoadRef.current = false;
+      // For 'new' and 'accepted', immediately notify — the customer just
+      // placed the order or the restaurant just accepted it, so they
+      // absolutely need to see the notification right away.
+      if (status === "new" || status === "accepted") {
+        handleChange(status as OrderStatus, orderNumber);
+      }
       return;
     }
 
     if (status !== prevStatusRef.current) {
       prevStatusRef.current = status;
-      handleChange(status, orderNumber);
+      handleChange(status as OrderStatus, orderNumber);
     }
   }, [status, orderNumber, handleChange]);
 
