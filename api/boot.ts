@@ -15,6 +15,7 @@ import crypto from "crypto";
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 const uploadsDir = path.resolve(process.cwd(), "uploads");
+await fs.promises.mkdir(uploadsDir, { recursive: true });
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
 
@@ -42,7 +43,7 @@ app.post("/api/upload", async (c) => {
   }
 });
 
-app.get("/uploads/*", serveStatic({ root: "./uploads" }));
+app.get("/uploads/*", serveStatic({ root: uploadsDir }));
 app.get(Paths.oauthCallback, createOAuthCallbackHandler());
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({

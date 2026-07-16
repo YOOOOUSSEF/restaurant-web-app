@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { resolveInventoryMovementItemName } from "@/lib/inventory-movements";
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
 import { motion } from "framer-motion";
@@ -66,6 +67,20 @@ export default function InventoryPage() {
       await utils.inventory.getLowStock.invalidate();
     },
   });
+  const updateQuantity = trpc.inventory.updateItem.useMutation({
+    onSuccess: async () => {
+      await utils.inventory.list.invalidate();
+      await utils.inventory.getLowStock.invalidate();
+      await utils.inventory.getMovements.invalidate();
+    },
+  });
+  const updateMovement = trpc.inventory.updateMovement.useMutation({
+    onSuccess: async () => {
+      await utils.inventory.list.invalidate();
+      await utils.inventory.getLowStock.invalidate();
+      await utils.inventory.getMovements.invalidate();
+    },
+  });
   const createSupplier = trpc.inventory.createSupplier.useMutation({
     onSuccess: async () => {
       await utils.inventory.listSuppliers.invalidate();
@@ -87,6 +102,8 @@ export default function InventoryPage() {
   });
 
   const editingItem = useMemo(() => inventory?.find((item) => item.id === editingItemId) ?? null, [inventory, editingItemId]);
+  const [quantityInput, setQuantityInput] = useState<Record<number, string>>({});
+  const [movementQuantityInput, setMovementQuantityInput] = useState<Record<number, string>>({});
 
   const getStatus = (item: any) => {
     const stock = parseFloat(item.currentStock);
@@ -258,6 +275,28 @@ export default function InventoryPage() {
                           >
                             <Pencil size={16} />
                           </button>
+                          <div className="flex items-center gap-1 rounded-lg border border-[#D4C8B8] px-2 py-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={quantityInput[item.id] ?? ""}
+                              onChange={(e) => setQuantityInput((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                              placeholder={lang === "ar" ? "كمية" : "Qty"}
+                              className="w-16 border-none bg-transparent text-sm outline-none"
+                            />
+                            <button
+                              onClick={() => {
+                                const parsed = parseFloat(quantityInput[item.id] ?? "0");
+                                if (Number.isNaN(parsed) || parsed <= 0) return;
+                                updateQuantity.mutate({ id: item.id, currentStock: (parseFloat(item.currentStock || "0") + parsed).toFixed(2) });
+                                setQuantityInput((prev) => ({ ...prev, [item.id]: "" }));
+                              }}
+                              className="rounded bg-[#6B7F3E] px-2 py-1 text-[11px] font-semibold text-white"
+                            >
+                              {lang === "ar" ? "إضافة" : "Add"}
+                            </button>
+                          </div>
                           <button
                             onClick={() => deleteItem.mutate({ id: item.id })}
                             className="rounded-lg border border-[#D4C8B8] p-2 text-[#C0392B]"
@@ -357,17 +396,54 @@ export default function InventoryPage() {
                 {movements?.map((m) => (
                   <tr key={m.id} className="border-t border-[#F5F0E8] hover:bg-[#F5F0E8]/50">
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                        m.movementType === "in" ? "bg-[#6B7F3E]/10 text-[#6B7F3E]" :
-                        m.movementType === "out" ? "bg-[#C75C2E]/10 text-[#C75C2E]" :
-                        m.movementType === "waste" ? "bg-[#C0392B]/10 text-[#C0392B]" :
-                        "bg-[#D4A017]/10 text-[#D4A017]"
-                      }`}>
-                        {m.movementType === "in" ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                        {m.movementType}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                          m.movementType === "in" ? "bg-[#6B7F3E]/10 text-[#6B7F3E]" :
+                          m.movementType === "out" ? "bg-[#C75C2E]/10 text-[#C75C2E]" :
+                          m.movementType === "waste" ? "bg-[#C0392B]/10 text-[#C0392B]" :
+                          "bg-[#D4A017]/10 text-[#D4A017]"
+                        }`}>
+                          {m.movementType === "in" ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                          {m.movementType}
+                        </span>
+                        <span className="text-xs text-[#5C4D44] font-medium">
+                          {resolveInventoryMovementItemName({
+                            inventoryItemName: m.inventoryItemName,
+                            inventoryItemNameAr: m.inventoryItemNameAr,
+                            inventoryItemCode: m.inventoryItemCode,
+                          }, lang === "ar" ? "ar" : "en")}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 font-medium">{m.quantity}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={movementQuantityInput[m.id] ?? String(m.quantity ?? "")}
+                          onChange={(e) => setMovementQuantityInput((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                          className="w-20 rounded border border-[#D4C8B8] px-2 py-1 text-sm"
+                        />
+                        <button
+                          onClick={() => {
+                            const parsed = parseFloat(movementQuantityInput[m.id] ?? String(m.quantity ?? "0"));
+                            if (Number.isNaN(parsed) || parsed < 0) return;
+                            updateMovement.mutate({
+                              id: m.id,
+                              quantity: parsed.toFixed(2),
+                              movementType: m.movementType,
+                              reason: m.reason ?? undefined,
+                              referenceType: m.referenceType ?? undefined,
+                              referenceId: m.referenceId ?? undefined,
+                            });
+                          }}
+                          className="rounded bg-[#4A7FB5] px-2 py-1 text-[11px] font-semibold text-white"
+                        >
+                          {lang === "ar" ? "حفظ" : "Save"}
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-[#5C4D44]">{m.reason || "-"}</td>
                     <td className="px-4 py-3 text-[#8B7A6E]">{m.referenceType || "-"}</td>
                     <td className="px-4 py-3 text-[#8B7A6E]">

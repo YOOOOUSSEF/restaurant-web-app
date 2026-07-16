@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and, or, like } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
+import { calculateMovementStockDelta } from "../inventory-movements";
 import {
   inventoryItems,
   recipes,
@@ -131,18 +132,83 @@ export const inventoryRouter = createRouter({
       return { success: true };
     }),
 
+  updateMovement: publicQuery
+    .input(
+      z.object({
+        id: z.number(),
+        quantity: z.string().optional(),
+        movementType: z.enum(["in", "out", "adjustment", "waste"]).optional(),
+        reason: z.string().optional().nullable(),
+        referenceType: z.string().optional().nullable(),
+        referenceId: z.number().optional().nullable(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const [movement] = await db.select().from(stockMovements).where(eq(stockMovements.id, input.id)).limit(1);
+      if (!movement) throw new Error("Movement not found");
+
+      const previousQuantity = parseFloat(String(movement.quantity ?? "0"));
+      const previousMovementType = movement.movementType ?? "out";
+      const nextQuantity = input.quantity !== undefined ? parseFloat(input.quantity) : previousQuantity;
+      const nextMovementType = input.movementType ?? previousMovementType;
+      const delta = calculateMovementStockDelta({
+        previousQuantity,
+        previousMovementType,
+        nextQuantity,
+        nextMovementType,
+      });
+
+      if (delta !== 0) {
+        await db
+          .update(inventoryItems)
+          .set({
+            currentStock: sql`CAST(current_stock AS DECIMAL(10,2)) + ${(delta.toFixed(2))}`,
+          })
+          .where(eq(inventoryItems.id, movement.inventoryItemId));
+      }
+
+      const updateValues: Record<string, unknown> = {};
+      if (input.quantity !== undefined) updateValues.quantity = parseFloat(input.quantity).toFixed(2);
+      if (input.movementType !== undefined) updateValues.movementType = input.movementType;
+      if (input.reason !== undefined) updateValues.reason = input.reason ?? null;
+      if (input.referenceType !== undefined) updateValues.referenceType = input.referenceType ?? null;
+      if (input.referenceId !== undefined) updateValues.referenceId = input.referenceId ?? null;
+
+      if (Object.keys(updateValues).length > 0) {
+        await db.update(stockMovements).set(updateValues).where(eq(stockMovements.id, input.id));
+      }
+
+      return { success: true };
+    }),
+
   getMovements: publicQuery
     .input(z.object({ inventoryItemId: z.number() }).optional())
     .query(async ({ input }) => {
       const db = getDb();
+      const query = db
+        .select({
+          id: stockMovements.id,
+          inventoryItemId: stockMovements.inventoryItemId,
+          movementType: stockMovements.movementType,
+          quantity: stockMovements.quantity,
+          reason: stockMovements.reason,
+          referenceType: stockMovements.referenceType,
+          referenceId: stockMovements.referenceId,
+          createdBy: stockMovements.createdBy,
+          createdAt: stockMovements.createdAt,
+          inventoryItemName: inventoryItems.nameEn,
+          inventoryItemNameAr: inventoryItems.nameAr,
+          inventoryItemCode: inventoryItems.code,
+        })
+        .from(stockMovements)
+        .leftJoin(inventoryItems, eq(stockMovements.inventoryItemId, inventoryItems.id))
+        .orderBy(desc(stockMovements.createdAt));
+
       if (input?.inventoryItemId) {
-        return db
-          .select()
-          .from(stockMovements)
-          .where(eq(stockMovements.inventoryItemId, input.inventoryItemId))
-          .orderBy(desc(stockMovements.createdAt));
+        return query.where(eq(stockMovements.inventoryItemId, input.inventoryItemId));
       }
-      return db.select().from(stockMovements).orderBy(desc(stockMovements.createdAt));
+      return query;
     }),
 
   // Recipes

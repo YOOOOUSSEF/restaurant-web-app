@@ -51,6 +51,11 @@ export default function DashboardPage() {
 
   const todayRevenue = parseFloat(stats?.todayRevenue || "0").toFixed(0);
   const todayOrders = stats?.todayOrders || 0;
+  const topProductsChartData = (topProducts || []).map((product: any) => ({
+    name: product?.name || "Unknown",
+    quantity: Number(product?.quantity || 0),
+    revenue: Number(product?.revenue || 0),
+  }));
 
   return (
     <div>
@@ -130,17 +135,23 @@ export default function DashboardPage() {
           className="bg-white rounded-xl p-6 border border-[#E8DFD3] shadow-sm"
         >
           <h3 className="font-semibold text-[#2D2420] mb-4">{t.topProducts}</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={topProducts || []} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#E8DFD3" />
-              <XAxis type="number" stroke="#8B7A6E" fontSize={12} />
-              <YAxis dataKey="name" type="category" stroke="#8B7A6E" fontSize={11} width={100} />
-              <Tooltip
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #E8DFD3", borderRadius: "8px" }}
-              />
-              <Bar dataKey="quantity" fill="#C75C2E" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {topProductsChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={topProductsChartData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#E8DFD3" />
+                <XAxis type="number" stroke="#8B7A6E" fontSize={12} />
+                <YAxis dataKey="name" type="category" stroke="#8B7A6E" fontSize={11} width={100} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #E8DFD3", borderRadius: "8px" }}
+                />
+                <Bar dataKey="quantity" fill="#C75C2E" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-[250px] items-center justify-center text-sm text-[#8B7A6E]">
+              {lang === "ar" ? "لا توجد بيانات للمنتجات حتى الآن" : "No top product data yet"}
+            </div>
+          )}
         </motion.div>
       </div>
 
