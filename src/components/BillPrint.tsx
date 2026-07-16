@@ -83,6 +83,7 @@ export function printBill(data: BillData) {
     : isAr
     ? "الضريبة"
     : "Tax";
+  const currencyLabel = isAr ? "ريال سعودي" : "SAR";
 
   const orderTypeLabel = data.orderType
     ? data.orderType.replace("_", " ")
@@ -326,11 +327,11 @@ export function printBill(data: BillData) {
       <tbody>
         <tr class="summary-row">
           <td colspan="2">${isAr ? "المجموع الفرعي" : "Subtotal"}</td>
-          <td>${formatCurrency(data.subtotal)} SAR</td>
+          <td>${formatCurrency(data.subtotal)} ${currencyLabel}</td>
         </tr>
         <tr class="summary-row">
           <td colspan="2">${taxLabel}</td>
-          <td>${formatCurrency(data.tax)} SAR</td>
+          <td>${formatCurrency(data.tax)} ${currencyLabel}</td>
         </tr>
         ${deliveryRow}
         ${discountRow}
@@ -339,7 +340,7 @@ export function printBill(data: BillData) {
         </tr>
         <tr class="total-row">
           <td colspan="2">${isAr ? "الإجمالي" : "TOTAL"}</td>
-          <td>${formatCurrency(data.total)} SAR</td>
+          <td>${formatCurrency(data.total)} ${currencyLabel}</td>
         </tr>
       </tbody>
     </table>

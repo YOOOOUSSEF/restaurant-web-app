@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
+import { getCurrencyLabel } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ToggleLeft,
@@ -182,8 +183,10 @@ function RecipeManager({
 export default function MenuManagementPage() {
   const { lang, t } = useI18nContext();
   const isAr = lang === "ar";
+  const currencyLabel = getCurrencyLabel(lang);
   const [activeTab, setActiveTab] = useState<Tab>("products");
   const [expandedRecipeKey, setExpandedRecipeKey] = useState<string | null>(null);
+  const [categoryForm, setCategoryForm] = useState({ code: "", nameEn: "", nameAr: "" });
 
   const [productForm, setProductForm] = useState({
     code: "",
@@ -229,6 +232,15 @@ export default function MenuManagementPage() {
   });
   const deleteOffer = trpc.restaurant.deleteOffer.useMutation({
     onSuccess: () => void utils.restaurant.listAllOffers.invalidate(),
+  });
+  const createCategory = trpc.menu.createCategory.useMutation({
+    onSuccess: () => {
+      void utils.menu.listCategories.invalidate();
+      setCategoryForm({ code: "", nameEn: "", nameAr: "" });
+    },
+  });
+  const deleteCategory = trpc.menu.deleteCategory.useMutation({
+    onSuccess: () => void utils.menu.listCategories.invalidate(),
   });
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -352,7 +364,7 @@ export default function MenuManagementPage() {
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="font-bold text-[#C75C2E] text-sm">
-                        {parseFloat(product.basePrice).toFixed(2)} SAR
+                        {parseFloat(product.basePrice).toFixed(2)} {currencyLabel}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1.5 justify-end">
                         {/* Recipe toggle */}
@@ -418,29 +430,81 @@ export default function MenuManagementPage() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          className="space-y-4"
         >
-          {categories?.map((cat) => (
-            <div
-              key={cat.id}
-              className="bg-white rounded-xl p-5 border border-[#E8DFD3] shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-mono text-[#C75C2E]">{cat.code}</span>
-                <span className="bg-[#F5F0E8] text-[#5C4D44] px-2 py-0.5 rounded-full text-xs">
-                  {products?.filter((p) => p.categoryId === cat.id).length || 0} {isAr ? "منتج" : "products"}
-                </span>
-              </div>
-              <h3 className="font-semibold text-[#2D2420]">{isAr ? cat.nameAr : cat.nameEn}</h3>
-              <div className="flex items-center gap-2 mt-3">
-                {cat.isActive ? (
-                  <span className="text-xs text-[#6B7F3E] bg-[#6B7F3E]/10 px-2 py-1 rounded-full">{isAr ? "نشط" : "Active"}</span>
-                ) : (
-                  <span className="text-xs text-[#C0392B] bg-[#C0392B]/10 px-2 py-1 rounded-full">{isAr ? "غير نشط" : "Inactive"}</span>
-                )}
-              </div>
+          <div className="bg-white rounded-xl border border-[#E8DFD3] shadow-sm p-4">
+            <h2 className="text-lg font-semibold text-[#2D2420] mb-3">
+              {isAr ? "إضافة تصنيف" : "Add category"}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input
+                value={categoryForm.code}
+                onChange={(e) => setCategoryForm({ ...categoryForm, code: e.target.value })}
+                placeholder={isAr ? "الكود (اختياري)" : "Code (optional)"}
+                className="rounded-lg border border-[#D4C8B8] px-3 py-2"
+              />
+              <input
+                value={categoryForm.nameEn}
+                onChange={(e) => setCategoryForm({ ...categoryForm, nameEn: e.target.value })}
+                placeholder={isAr ? "الاسم بالإنجليزية" : "Name (EN)"}
+                className="rounded-lg border border-[#D4C8B8] px-3 py-2"
+              />
+              <input
+                value={categoryForm.nameAr}
+                onChange={(e) => setCategoryForm({ ...categoryForm, nameAr: e.target.value })}
+                placeholder={isAr ? "الاسم بالعربية" : "Name (AR)"}
+                className="rounded-lg border border-[#D4C8B8] px-3 py-2"
+              />
             </div>
-          ))}
+            <button
+              onClick={() => {
+                if (!categoryForm.nameEn.trim() || !categoryForm.nameAr.trim()) return;
+                createCategory.mutate({
+                  code: categoryForm.code || undefined,
+                  nameEn: categoryForm.nameEn,
+                  nameAr: categoryForm.nameAr,
+                });
+              }}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#C75C2E] px-3 py-2 text-sm font-medium text-white"
+            >
+              <Plus size={16} /> {isAr ? "إضافة" : "Add"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {categories?.map((cat) => {
+              const productCount = products?.filter((p) => p.categoryId === cat.id).length || 0;
+
+              return (
+                <div
+                  key={cat.id}
+                  className="bg-white rounded-xl p-5 border border-[#E8DFD3] shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-mono text-[#C75C2E]">{cat.code}</span>
+                    <button
+                      onClick={() => deleteCategory.mutate({ id: cat.id })}
+                      className="rounded-lg border border-[#D4C8B8] p-1.5 text-[#C0392B] transition-colors hover:bg-[#F5F0E8]"
+                      title={isAr ? "حذف التصنيف" : "Delete category"}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <h3 className="font-semibold text-[#2D2420]">{isAr ? cat.nameAr : cat.nameEn}</h3>
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className="bg-[#F5F0E8] text-[#5C4D44] px-2 py-1 rounded-full text-xs">
+                      {productCount} {isAr ? "منتج" : "products"}
+                    </span>
+                    {cat.isActive ? (
+                      <span className="text-xs text-[#6B7F3E] bg-[#6B7F3E]/10 px-2 py-1 rounded-full">{isAr ? "نشط" : "Active"}</span>
+                    ) : (
+                      <span className="text-xs text-[#C0392B] bg-[#C0392B]/10 px-2 py-1 rounded-full">{isAr ? "غير نشط" : "Inactive"}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </motion.div>
       )}
 
@@ -522,7 +586,7 @@ export default function MenuManagementPage() {
                     <img src={offer.imageUrl} alt={isAr ? offer.nameAr : offer.nameEn} className="w-full h-32 object-cover rounded-lg mt-3" />
                   ) : null}
                   <div className="flex items-center justify-between mt-4 gap-2">
-                    <span className="text-2xl font-bold">{offer.price} SAR</span>
+                    <span className="text-2xl font-bold">{offer.price} {currencyLabel}</span>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setExpandedRecipeKey(isExpanded ? null : recipeKey)}

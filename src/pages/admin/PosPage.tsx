@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
 import { motion } from "framer-motion";
 import { Plus, Minus, Trash2, Receipt, Printer } from "lucide-react";
-import { isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
+import { getCurrencyLabel, isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
 import { printBill, type BillData } from "@/components/BillPrint";
 
 interface PosItem {
@@ -15,6 +15,7 @@ interface PosItem {
 
 export default function PosPage() {
   const { lang, t } = useI18nContext();
+  const currencyLabel = getCurrencyLabel(lang);
   const [cart, setCart] = useState<PosItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -196,7 +197,7 @@ export default function PosPage() {
                   className="w-full aspect-[4/3] object-cover rounded-lg mb-2"
                 />
                 <p className="text-sm font-medium text-[#2D2420] truncate">{getProductName(product)}</p>
-                <p className="text-sm font-bold text-[#C75C2E]">{parseFloat(product.basePrice).toFixed(2)} SAR</p>
+                <p className="text-sm font-bold text-[#C75C2E]">{parseFloat(product.basePrice).toFixed(2)} {currencyLabel}</p>
               </motion.button>
             ))}
           </div>
@@ -238,15 +239,15 @@ export default function PosPage() {
           <div className="p-4 border-t border-[#E8DFD3] space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-[#5C4D44]">{t.subtotal}</span>
-              <span>{subtotal.toFixed(2)} SAR</span>
+              <span>{subtotal.toFixed(2)} {currencyLabel}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-[#5C4D44]">{t.tax}</span>
-              <span>{tax.toFixed(2)} SAR</span>
+              <span>{tax.toFixed(2)} {currencyLabel}</span>
             </div>
             <div className="flex justify-between font-bold text-base border-t border-[#F5F0E8] pt-2">
               <span>{t.total}</span>
-              <span className="text-[#C75C2E]">{total.toFixed(2)} SAR</span>
+              <span className="text-[#C75C2E]">{total.toFixed(2)} {currencyLabel}</span>
             </div>
           </div>
 

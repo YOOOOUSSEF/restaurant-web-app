@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
 import { useCart } from "@/hooks/useCart";
+import { getCurrencyLabel } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Pizza, Beef, Croissant, CupSoda, IceCreamCone } from "lucide-react";
 
@@ -25,6 +26,7 @@ const fadeInUp = {
 
 export default function MenuPage() {
   const { lang, t } = useI18nContext();
+  const currencyLabel = getCurrencyLabel(lang);
   const { addItem } = useCart();
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -141,7 +143,7 @@ export default function MenuPage() {
                 <p className="text-white/80 text-sm mt-1">
                   {lang === "ar" ? offer.descriptionAr : offer.descriptionEn}
                 </p>
-                <p className="text-2xl font-bold mt-2">{offer.price} SAR</p>
+                <p className="text-2xl font-bold mt-2">{offer.price} {currencyLabel}</p>
                 <button
                   onClick={() => handleAddOfferToCart(offer)}
                   className={`mt-4 w-full inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300 ${
@@ -212,7 +214,7 @@ export default function MenuPage() {
 
                   <div className="flex items-center justify-between mt-4">
                     <span className="text-[#C75C2E] font-bold text-lg">
-                      {parseFloat(product.basePrice).toFixed(2)} SAR
+                      {parseFloat(product.basePrice).toFixed(2)} {currencyLabel}
                     </span>
                     <button
                       onClick={() => handleAddToCart(product)}

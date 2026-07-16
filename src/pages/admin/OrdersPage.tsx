@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
 import StatusBadge from "@/components/StatusBadge";
+import { getCurrencyLabel } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -132,6 +133,7 @@ function FeedbackToast({ message, type }: { message: string; type: "success" | "
 export default function OrdersPage() {
   const { lang, t } = useI18nContext();
   const isAr = lang === "ar";
+  const currencyLabel = getCurrencyLabel(lang);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -340,7 +342,7 @@ export default function OrdersPage() {
                     <td className="px-4 py-3">
                       <span className="capitalize">{order.orderType?.replace("_", " ")}</span>
                     </td>
-                    <td className="px-4 py-3 font-semibold">{parseFloat(order.total).toFixed(2)} SAR</td>
+                    <td className="px-4 py-3 font-semibold">{parseFloat(order.total).toFixed(2)} {currencyLabel}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={order.status} />
                     </td>
@@ -512,20 +514,20 @@ export default function OrdersPage() {
                   {orderDetail.items?.map((item: any) => (
                     <div key={item.id} className="flex justify-between py-1.5 text-sm">
                       <span>{item.quantity}x {isAr ? item.productNameAr : item.productNameEn}</span>
-                      <span className="font-medium">{parseFloat(item.totalPrice).toFixed(2)} SAR</span>
+                      <span className="font-medium">{parseFloat(item.totalPrice).toFixed(2)} {currencyLabel}</span>
                     </div>
                   ))}
                 </div>
 
                 <div className="border-t border-[#F5F0E8] pt-4 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-[#5C4D44]">{t.subtotal}</span><span>{parseFloat(orderDetail.subtotal || "0").toFixed(2)} SAR</span></div>
-                  <div className="flex justify-between"><span className="text-[#5C4D44]">{t.tax}</span><span>{parseFloat(orderDetail.taxAmount || "0").toFixed(2)} SAR</span></div>
+                  <div className="flex justify-between"><span className="text-[#5C4D44]">{t.subtotal}</span><span>{parseFloat(orderDetail.subtotal || "0").toFixed(2)} {currencyLabel}</span></div>
+                  <div className="flex justify-between"><span className="text-[#5C4D44]">{t.tax}</span><span>{parseFloat(orderDetail.taxAmount || "0").toFixed(2)} {currencyLabel}</span></div>
                   {parseFloat(orderDetail.deliveryFee || "0") > 0 && (
-                    <div className="flex justify-between"><span className="text-[#5C4D44]">{t.deliveryFee}</span><span>{parseFloat(orderDetail.deliveryFee || "0").toFixed(2)} SAR</span></div>
+                    <div className="flex justify-between"><span className="text-[#5C4D44]">{t.deliveryFee}</span><span>{parseFloat(orderDetail.deliveryFee || "0").toFixed(2)} {currencyLabel}</span></div>
                   )}
                   <div className="flex justify-between font-bold text-base pt-2 border-t border-[#F5F0E8]">
                     <span>{t.total}</span>
-                    <span className="text-[#C75C2E]">{parseFloat(orderDetail.total || "0").toFixed(2)} SAR</span>
+                    <span className="text-[#C75C2E]">{parseFloat(orderDetail.total || "0").toFixed(2)} {currencyLabel}</span>
                   </div>
                 </div>
 

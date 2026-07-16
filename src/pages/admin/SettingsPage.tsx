@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
+import { getCurrencyLabel } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
   Store,
@@ -19,6 +20,7 @@ type Tab = "restaurant" | "areas" | "payment" | "users";
 
 export default function SettingsPage() {
   const { lang, t } = useI18nContext();
+  const currencyLabel = getCurrencyLabel(lang);
   const [activeTab, setActiveTab] = useState<Tab>("restaurant");
   const [profileForm, setProfileForm] = useState({
     id: 0,
@@ -303,7 +305,7 @@ export default function SettingsPage() {
               {deliveryAreas?.map((area) => (
                 <tr key={area.id} className="border-t border-[#F5F0E8]">
                   <td className="px-4 py-3 font-medium">{lang === "ar" ? area.nameAr : area.nameEn}</td>
-                  <td className="px-4 py-3">{area.fee} SAR</td>
+                  <td className="px-4 py-3">{area.fee} {currencyLabel}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {area.isActive ? (

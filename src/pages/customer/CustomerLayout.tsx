@@ -4,6 +4,7 @@ import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 import ZigzagDivider from "@/components/ZigzagDivider";
+import { getCurrencyLabel } from "@/lib/utils";
 import NotificationCenter from "@/components/NotificationCenter";
 import GlobalOrderTracker from "@/components/GlobalOrderTracker";
 import { ShoppingCart, Globe, LogOut } from "lucide-react";
@@ -24,6 +25,7 @@ export default function CustomerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const currencyLabel = getCurrencyLabel(lang);
 
   const currentPath = location.pathname;
 
@@ -81,7 +83,7 @@ export default function CustomerLayout() {
               <div className="flex items-center gap-2 bg-[#C75C2E] text-white px-4 py-2 rounded-full hover:bg-[#A84A22] transition-colors">
                 <ShoppingCart size={16} />
                 <span className="text-sm font-medium">
-                  {totalItems} {t.items} &middot; {parseFloat(totalPrice).toFixed(2)} SAR
+                  {totalItems} {t.items} &middot; {parseFloat(totalPrice).toFixed(2)} {currencyLabel}
                 </span>
               </div>
             </Link>

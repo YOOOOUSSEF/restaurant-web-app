@@ -1,11 +1,13 @@
 import { Link, useNavigate } from "react-router";
 import { useI18nContext } from "@/i18n/I18nContext";
 import { useCart } from "@/hooks/useCart";
+import { getCurrencyLabel } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Trash2, Minus, Plus, ShoppingBag } from "lucide-react";
 
 export default function CartPage() {
-  const { t } = useI18nContext();
+  const { lang, t } = useI18nContext();
+  const currencyLabel = getCurrencyLabel(lang);
   const { cart, removeItem, updateQuantity, clearCart, subtotal, tax } = useCart();
   const navigate = useNavigate();
 
@@ -67,7 +69,7 @@ export default function CartPage() {
                   {item.nameEn}
                 </h3>
                 <p className="text-[#C75C2E] font-bold mt-1">
-                  {item.price.toFixed(2)} SAR
+                  {item.price.toFixed(2)} {currencyLabel}
                 </p>
               </div>
 
@@ -91,7 +93,7 @@ export default function CartPage() {
 
               <div className="text-right min-w-[80px]">
                 <p className="font-bold text-[#2D2420]">
-                  {(item.price * item.quantity).toFixed(2)} SAR
+                  {(item.price * item.quantity).toFixed(2)} {currencyLabel}
                 </p>
               </div>
 
@@ -114,20 +116,20 @@ export default function CartPage() {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-[#5C4D44]">{t.subtotal}</span>
-              <span className="font-medium text-[#2D2420]">{subtotal.toFixed(2)} SAR</span>
+              <span className="font-medium text-[#2D2420]">{subtotal.toFixed(2)} {currencyLabel}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-[#5C4D44]">{t.tax}</span>
-              <span className="font-medium text-[#2D2420]">{tax.toFixed(2)} SAR</span>
+              <span className="font-medium text-[#2D2420]">{tax.toFixed(2)} {currencyLabel}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-[#5C4D44]">{t.deliveryFee}</span>
-              <span className="font-medium text-[#2D2420]">{deliveryFee.toFixed(2)} SAR</span>
+              <span className="font-medium text-[#2D2420]">{deliveryFee.toFixed(2)} {currencyLabel}</span>
             </div>
             {discount > 0 && (
               <div className="flex justify-between text-[#C75C2E]">
                 <span>{t.discount}</span>
-                <span className="font-medium">-{discount.toFixed(2)} SAR</span>
+                <span className="font-medium">-{discount.toFixed(2)} {currencyLabel}</span>
               </div>
             )}
           </div>
@@ -135,7 +137,7 @@ export default function CartPage() {
           <div className="border-t border-[#E8DFD3] mt-4 pt-4">
             <div className="flex justify-between items-center">
               <span className="font-bold text-[#2D2420]">{t.total}</span>
-              <span className="text-2xl font-bold text-[#C75C2E]">{total.toFixed(2)} SAR</span>
+              <span className="text-2xl font-bold text-[#C75C2E]">{total.toFixed(2)} {currencyLabel}</span>
             </div>
           </div>
 

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { getCurrencyLabel } from "@/lib/utils";
 import {
   Users,
   Star,
@@ -81,6 +82,7 @@ function StarRating({ rating }: { rating: number }) {
 export default function CustomersPage() {
   const { lang } = useI18nContext();
   const isAr = lang === "ar";
+  const currencyLabel = getCurrencyLabel(lang);
 
   const [activeTab, setActiveTab] = useState<Tab>("customers");
   const [search, setSearch] = useState("");
@@ -366,7 +368,7 @@ export default function CustomersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-[#2D2420]">
-                        {parseFloat(customer.totalSpent ?? "0").toFixed(2)} SAR
+                        {parseFloat(customer.totalSpent ?? "0").toFixed(2)} {currencyLabel}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -441,9 +443,9 @@ export default function CustomersPage() {
                       <p className="text-xs text-[#8B7A6E] mt-0.5">
                         {coupon.discountType === "percentage"
                           ? `${coupon.discountValue}% ${isAr ? "خصم" : "off"}`
-                          : `${coupon.discountValue} SAR ${isAr ? "خصم" : "off"}`}
+                          : `${coupon.discountValue} ${currencyLabel} ${isAr ? "خصم" : "off"}`}
                         {coupon.minOrderAmount && parseFloat(coupon.minOrderAmount) > 0
-                          ? ` · ${isAr ? "حد أدنى" : "Min"} ${coupon.minOrderAmount} SAR`
+                          ? ` · ${isAr ? "حد أدنى" : "Min"} ${coupon.minOrderAmount} ${currencyLabel}`
                           : ""}
                         {coupon.maxUsage
                           ? ` · ${coupon.usedCount ?? 0}/${coupon.maxUsage} ${isAr ? "استخدام" : "uses"}`
@@ -611,7 +613,7 @@ export default function CustomersPage() {
                   </div>
                   <div className="bg-[#F5F0E8] rounded-xl p-3 text-center">
                     <p className="text-lg font-bold text-[#2D2420] mt-4">{parseFloat(selectedCustomer.totalSpent ?? "0").toFixed(0)}</p>
-                    <p className="text-xs text-[#8B7A6E]">SAR</p>
+                    <p className="text-xs text-[#8B7A6E]">{currencyLabel}</p>
                   </div>
                 </div>
 
@@ -638,7 +640,7 @@ export default function CustomersPage() {
                           }`}>
                             {order.status}
                           </span>
-                          <span className="font-medium">{parseFloat(order.total).toFixed(2)} SAR</span>
+                          <span className="font-medium">{parseFloat(order.total).toFixed(2)} {currencyLabel}</span>
                           <span className="text-[#8B7A6E] text-xs">
                             {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "—"}
                           </span>
@@ -829,7 +831,7 @@ export default function CustomersPage() {
                       className={inputCls}
                     >
                       <option value="percentage">{isAr ? "نسبة مئوية %" : "Percentage %"}</option>
-                      <option value="fixed">{isAr ? "مبلغ ثابت SAR" : "Fixed Amount SAR"}</option>
+                      <option value="fixed">{isAr ? `مبلغ ثابت ${currencyLabel}` : `Fixed Amount ${currencyLabel}`}</option>
                     </select>
                   </div>
                   <div>
@@ -851,7 +853,7 @@ export default function CustomersPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-[#5C4D44] mb-1">
-                      {isAr ? "حد أدنى للطلب" : "Min Order (SAR)"}
+                      {isAr ? "حد أدنى للطلب" : `Min Order (${currencyLabel})`}
                     </label>
                     <input
                       type="number"

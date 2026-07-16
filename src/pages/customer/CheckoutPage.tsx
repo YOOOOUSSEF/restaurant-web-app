@@ -5,6 +5,7 @@ import { useI18nContext } from "@/i18n/I18nContext";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
+import { getCurrencyLabel } from "@/lib/utils";
 import {
   CreditCard,
   Smartphone,
@@ -86,6 +87,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const isAr = lang === "ar";
+  const currencyLabel = getCurrencyLabel(lang);
 
   const createOrder = trpc.order.create.useMutation();
   const { data: deliveryAreas } = trpc.restaurant.listDeliveryAreas.useQuery();
@@ -509,7 +511,7 @@ export default function CheckoutPage() {
                 <option value="">{t.selectArea}</option>
                 {deliveryAreas?.map((area) => (
                   <option key={area.id} value={area.id}>
-                    {lang === "ar" ? area.nameAr : area.nameEn} - {area.fee} SAR
+                    {lang === "ar" ? area.nameAr : area.nameEn} - {area.fee} {currencyLabel}
                   </option>
                 ))}
               </select>
@@ -785,9 +787,9 @@ export default function CheckoutPage() {
                   <p className="text-xs text-[#6B7F3E]">
                     {appliedCoupon.discountType === "percentage"
                       ? `${appliedCoupon.discountValue}% ${isAr ? "خصم" : "off"}`
-                      : `${appliedCoupon.discountValue} SAR ${isAr ? "خصم" : "off"}`}
+                      : `${appliedCoupon.discountValue} ${currencyLabel} ${isAr ? "خصم" : "off"}`}
                     {" — "}
-                    {isAr ? "وفّرت" : "Saving"} {appliedCoupon.discountAmount.toFixed(2)} SAR
+                    {isAr ? "وفّرت" : "Saving"} {appliedCoupon.discountAmount.toFixed(2)} {currencyLabel}
                   </p>
                 </div>
               </div>
@@ -859,16 +861,16 @@ export default function CheckoutPage() {
         <div className="space-y-2 text-sm mb-4">
           <div className="flex justify-between">
             <span className="text-[#5C4D44]">{t.subtotal}</span>
-            <span>{subtotal.toFixed(2)} SAR</span>
+            <span>{subtotal.toFixed(2)} {currencyLabel}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-[#5C4D44]">{t.tax}</span>
-            <span>{tax.toFixed(2)} SAR</span>
+            <span>{tax.toFixed(2)} {currencyLabel}</span>
           </div>
           {deliveryFee > 0 && (
             <div className="flex justify-between">
               <span className="text-[#5C4D44]">{t.deliveryFee}</span>
-              <span>{deliveryFee.toFixed(2)} SAR</span>
+              <span>{deliveryFee.toFixed(2)} {currencyLabel}</span>
             </div>
           )}
           <AnimatePresence>
@@ -883,13 +885,13 @@ export default function CheckoutPage() {
                   <Tag size={13} />
                   {t.discount} ({appliedCoupon?.code})
                 </span>
-                <span>-{discountAmount.toFixed(2)} SAR</span>
+                <span>-{discountAmount.toFixed(2)} {currencyLabel}</span>
               </motion.div>
             )}
           </AnimatePresence>
           <div className="border-t border-[#E8DFD3] pt-2 flex justify-between font-bold text-lg">
             <span>{t.total}</span>
-            <span className="text-[#C75C2E]">{total.toFixed(2)} SAR</span>
+            <span className="text-[#C75C2E]">{total.toFixed(2)} {currencyLabel}</span>
           </div>
         </div>
 

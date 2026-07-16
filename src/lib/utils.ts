@@ -22,3 +22,7 @@ export function normalizeSaudiMobileNumber(value: string) {
   }
   return value.trim();
 }
+
+export function getCurrencyLabel(lang: "en" | "ar") {
+  return lang === "ar" ? "ريال سعودي" : "SAR";
+}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, like } from "drizzle-orm";
+import { eq, and, like, desc } from "drizzle-orm";
 import { createRouter, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { sql } from "drizzle-orm";
@@ -22,6 +22,46 @@ export const menuRouter = createRouter({
     const db = getDb();
     return db.select().from(categories).where(eq(categories.isActive, true)).orderBy(categories.sortOrder);
   }),
+
+  createCategory: publicQuery
+    .input(
+      z.object({
+        code: z.string().trim().min(1).max(10).optional(),
+        nameEn: z.string().trim().min(1),
+        nameAr: z.string().trim().min(1),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const lastCategory = await db.select({ sortOrder: categories.sortOrder }).from(categories).orderBy(desc(categories.sortOrder)).limit(1);
+
+      const nextSortOrder = (lastCategory[0]?.sortOrder ?? 0) + 1;
+      const nextCode = input.code?.trim() || `CAT${String(Date.now()).slice(-4)}`;
+
+      const [created] = await db
+        .insert(categories)
+        .values({
+          code: nextCode,
+          nameEn: input.nameEn,
+          nameAr: input.nameAr,
+          sortOrder: nextSortOrder,
+          isActive: true,
+        })
+        .$returningId();
+
+      return { id: created?.insertId ?? null, success: true, code: nextCode };
+    }),
+
+  deleteCategory: publicQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+
+      await db.update(products).set({ categoryId: null }).where(eq(products.categoryId, input.id));
+      await db.delete(categories).where(eq(categories.id, input.id));
+
+      return { success: true };
+    }),
 
   getCategoryById: publicQuery
     .input(z.object({ id: z.number() }))

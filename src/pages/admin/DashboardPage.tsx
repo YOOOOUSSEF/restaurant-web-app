@@ -1,5 +1,6 @@
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
+import { getCurrencyLabel } from "@/lib/utils";
 import StatusBadge from "@/components/StatusBadge";
 import { motion } from "framer-motion";
 import {
@@ -37,6 +38,7 @@ const stagger = {
 
 export default function DashboardPage() {
   const { lang, t } = useI18nContext();
+  const currencyLabel = getCurrencyLabel(lang);
   const { data: stats } = trpc.dashboard.getStats.useQuery();
   const { data: salesData } = trpc.dashboard.getSalesChart.useQuery({ days: 7 });
   const { data: topProducts } = trpc.dashboard.getTopProducts.useQuery({ limit: 5 });
@@ -45,7 +47,7 @@ export default function DashboardPage() {
 
   const statValues: Record<string, string> = {
     totalOrders: stats?.totalOrders?.toString() || "0",
-    totalRevenue: `${parseFloat(stats?.totalRevenue || "0").toFixed(0)} SAR`,
+    totalRevenue: `${parseFloat(stats?.totalRevenue || "0").toFixed(0)} ${currencyLabel}`,
     lowStockAlerts: stats?.lowStockAlerts?.toString() || "0",
   };
 
@@ -69,7 +71,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2 text-sm text-[#5C4D44]">
           <Clock size={14} />
-          <span>{t.today}: {todayOrders} {t.orders} &middot; {todayRevenue} SAR</span>
+          <span>{t.today}: {todayOrders} {t.orders} &middot; {todayRevenue} {currencyLabel}</span>
         </div>
       </div>
 
@@ -204,7 +206,7 @@ export default function DashboardPage() {
                   <td className="px-6 py-3 font-mono text-[#C75C2E]">{order.orderNumber}</td>
                   <td className="px-6 py-3">{order.customerName}</td>
                   <td className="px-6 py-3 uppercase">{order.paymentMethod}</td>
-                  <td className="px-6 py-3 font-semibold">{parseFloat(order.total).toFixed(2)} SAR</td>
+                  <td className="px-6 py-3 font-semibold">{parseFloat(order.total).toFixed(2)} {currencyLabel}</td>
                   <td className="px-6 py-3">
                     <StatusBadge status={order.status} />
                   </td>

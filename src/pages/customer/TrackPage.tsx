@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import StatusBadge from "@/components/StatusBadge";
 import OrderStatusToast from "@/components/OrderStatusToast";
 import { motion, AnimatePresence } from "framer-motion";
-import { isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
+import { getCurrencyLabel, isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
 import {
   useOrderStatusChange,
   requestNotificationPermission,
@@ -83,6 +83,7 @@ function StarInput({
 export default function TrackPage() {
   const { lang, t } = useI18nContext();
   const isAr = lang === "ar";
+  const currencyLabel = getCurrencyLabel(lang);
   const { isAuthenticated, user } = useAuth();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -466,7 +467,7 @@ export default function TrackPage() {
               </div>
               <div>
                 <p className="text-xs text-[#8B7A6E]">{t.total}</p>
-                <p className="font-bold text-[#C75C2E] text-sm">{parseFloat(order.total).toFixed(2)} SAR</p>
+                <p className="font-bold text-[#C75C2E] text-sm">{parseFloat(order.total).toFixed(2)} {currencyLabel}</p>
               </div>
             </div>
           </div>
@@ -531,8 +532,8 @@ export default function TrackPage() {
                       {lang === "ar" ? item.productNameAr : item.productNameEn}
                     </span>
                   </div>
-                  <span className="text-[#5C4D44] font-medium">
-                    {parseFloat(item.totalPrice).toFixed(2)} SAR
+                    <span className="text-[#5C4D44] font-medium">
+                    {parseFloat(item.totalPrice).toFixed(2)} {currencyLabel}
                   </span>
                 </div>
               ))}
@@ -541,16 +542,16 @@ export default function TrackPage() {
             <div className="mt-4 pt-4 border-t border-[#E8DFD3] space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-[#5C4D44]">{t.subtotal}</span>
-                <span>{parseFloat(order.subtotal).toFixed(2)} SAR</span>
+                <span>{parseFloat(order.subtotal).toFixed(2)} {currencyLabel}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#5C4D44]">{t.tax}</span>
-                <span>{parseFloat(order.taxAmount || "0").toFixed(2)} SAR</span>
+                <span>{parseFloat(order.taxAmount || "0").toFixed(2)} {currencyLabel}</span>
               </div>
               {parseFloat(order.deliveryFee || "0") > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#5C4D44]">{t.deliveryFee}</span>
-                  <span>{parseFloat(order.deliveryFee || "0").toFixed(2)} SAR</span>
+                  <span>{parseFloat(order.deliveryFee || "0").toFixed(2)} {currencyLabel}</span>
                 </div>
               )}
               {parseFloat(order.discountAmount || "0") > 0 && (
@@ -559,12 +560,12 @@ export default function TrackPage() {
                     {t.discount}
                     {order.couponCode ? ` (${order.couponCode})` : ""}
                   </span>
-                  <span>-{parseFloat(order.discountAmount || "0").toFixed(2)} SAR</span>
+                  <span>-{parseFloat(order.discountAmount || "0").toFixed(2)} {currencyLabel}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg pt-2 border-t border-[#E8DFD3]">
                 <span>{t.total}</span>
-                <span className="text-[#C75C2E]">{parseFloat(order.total || "0").toFixed(2)} SAR</span>
+                <span className="text-[#C75C2E]">{parseFloat(order.total || "0").toFixed(2)} {currencyLabel}</span>
               </div>
             </div>
           </div>
