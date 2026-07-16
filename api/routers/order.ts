@@ -22,6 +22,44 @@ function generateOrderNumber(): string {
   const random = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
   return `ORD-${timestamp}-${random}`;
 }
+
+function normalizePhoneNumber(value: string): string {
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.startsWith("966")) {
+    const local = digits.slice(3);
+    return `+966 ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`;
+  }
+
+  if (digits.startsWith("05") && digits.length >= 10) {
+    const local = digits.slice(1);
+    return `+966 ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`;
+  }
+
+  return value.trim();
+}
+
+function phoneDigitsSql(column: typeof orders.customerPhone) {
+  return sql`REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(${column}, ' ', ''), '+', ''), '-', ''), '(', ''), ')', '')`;
+}
+
+function normalizePhoneDigits(value: string): string {
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.startsWith("966")) {
+    return digits;
+  }
+
+  if (digits.startsWith("05") && digits.length >= 10) {
+    return `966${digits.slice(1)}`;
+  }
+
+  if (digits.startsWith("5") && digits.length === 9) {
+    return `966${digits}`;
+  }
+
+  return digits;
+}
  
 export const orderRouter = createRouter({
   // List orders with filters
@@ -105,6 +143,27 @@ export const orderRouter = createRouter({
  
       return { ...orderRows[0], items, history };
     }),
+
+  // Get active orders by phone number (for tracking)
+  getActiveByPhone: publicQuery
+    .input(z.object({ phone: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const phoneDigits = normalizePhoneDigits(input.phone);
+
+      if (!phoneDigits) return [];
+
+      return db
+        .select()
+        .from(orders)
+        .where(
+          and(
+            sql`${phoneDigitsSql(orders.customerPhone)} = ${phoneDigits}`,
+            sql`${orders.status} NOT IN ('delivered', 'completed', 'cancelled', 'canceled')`
+          )
+        )
+        .orderBy(desc(orders.createdAt));
+    }),
  
   // Create order
   create: publicQuery
@@ -152,6 +211,7 @@ export const orderRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const db = getDb();
+      const customerPhone = normalizePhoneNumber(input.customerPhone);
  
       // Calculate totals
       type OrderItemSource = {
@@ -253,7 +313,7 @@ export const orderRouter = createRouter({
       const result = await db.insert(orders).values({
         orderNumber,
         customerName: input.customerName,
-        customerPhone: input.customerPhone,
+        customerPhone,
         customerEmail: input.customerEmail,
         customerAddress: input.customerAddress,
         deliveryAreaId: input.deliveryAreaId,
@@ -316,7 +376,7 @@ export const orderRouter = createRouter({
       const existingCustomer = await db
         .select()
         .from(customers)
-        .where(eq(customers.phone, input.customerPhone))
+        .where(eq(customers.phone, customerPhone))
         .limit(1);
  
       if (existingCustomer[0]) {
@@ -328,7 +388,7 @@ export const orderRouter = createRouter({
             ...(input.customerEmail ? { email: input.customerEmail } : {}),
             ...(input.customerAddress ? { address: input.customerAddress } : {}),
           })
-          .where(eq(customers.phone, input.customerPhone));
+          .where(eq(customers.phone, customerPhone));
       } else {
         // Create new customer record now; totals are assigned when the order is completed.
         const lastCustomer = await db
@@ -347,7 +407,7 @@ export const orderRouter = createRouter({
         await db.insert(customers).values({
           code,
           name: input.customerName,
-          phone: input.customerPhone,
+          phone: customerPhone,
           email: input.customerEmail,
           address: input.customerAddress,
           totalOrders: 0,

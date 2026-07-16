@@ -4,6 +4,8 @@ import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 import ZigzagDivider from "@/components/ZigzagDivider";
+import NotificationCenter from "@/components/NotificationCenter";
+import GlobalOrderTracker from "@/components/GlobalOrderTracker";
 import { ShoppingCart, Globe, LogOut } from "lucide-react";
 import { useState } from "react";
 
@@ -27,6 +29,8 @@ export default function CustomerLayout() {
 
   return (
     <div className={`min-h-screen bg-[#F5F0E8] ${isRTL ? "rtl" : "ltr"}`}>
+      {/* Global order status tracker — polls every 3s regardless of active page */}
+      <GlobalOrderTracker />
       {/* Header */}
       <header className="bg-[#F5F0E8] border-b border-[#D4C8B8] sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -68,6 +72,9 @@ export default function CustomerLayout() {
                 </div>
               )}
             </div>
+
+            {/* Notification Center */}
+            <NotificationCenter lang={lang} />
 
             {/* Cart Badge */}
             <Link to="/cart" className="no-underline">

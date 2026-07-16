@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router";
 import { I18nProvider } from "./i18n/I18nContext";
 import { TRPCProvider } from "@/providers/trpc";
+import { NotificationProvider } from "@/providers/NotificationContext";
 
 // Customer Pages
 import CustomerLayout from "./pages/customer/CustomerLayout";
@@ -55,7 +56,7 @@ export default function App() {
           <Route path="/" element={<RootRedirect />} />
 
           {/* Customer Routes */}
-          <Route element={<CustomerLayout />}>
+          <Route element={<NotificationProvider><CustomerLayout /></NotificationProvider>}>
             <Route path="/menu" element={<MenuPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />

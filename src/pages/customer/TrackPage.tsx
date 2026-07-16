@@ -1,11 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useI18nContext } from "@/i18n/I18nContext";
 import { useAuth } from "@/hooks/useAuth";
 import StatusBadge from "@/components/StatusBadge";
+import OrderStatusToast from "@/components/OrderStatusToast";
 import { motion, AnimatePresence } from "framer-motion";
 import { isSaudiMobileNumber, normalizeSaudiMobileNumber } from "@/lib/utils";
+import {
+  useOrderStatusChange,
+  requestNotificationPermission,
+  type StatusNotification,
+} from "@/hooks/useOrderNotifications";
+import { useNotifications } from "@/providers/NotificationContext";
 import {
   Search,
   Clock,
@@ -22,6 +29,8 @@ import {
   Phone,
   ListOrdered,
   ArrowRight,
+  Bell,
+  BellOff,
 } from "lucide-react";
 
 const statusSteps = [
@@ -80,6 +89,34 @@ export default function TrackPage() {
   const [orderNumber, setOrderNumber] = useState(searchParams.get("order") || "");
   const [searchTrigger, setSearchTrigger] = useState(searchParams.get("order") || "");
 
+  // ── Notifications ────────────────────────────────────────
+  const [toasts, setToasts] = useState<StatusNotification[]>([]);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null);
+  // setTrackedOrderNumber: tells GlobalOrderTracker (in CustomerLayout) which order to watch.
+  // GlobalOrderTracker handles bell notifications; TrackPage only drives in-page toasts.
+  const { setTrackedOrderNumber } = useNotifications();
+
+  // Check browser notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window) {
+      setNotifPermission(Notification.permission);
+    }
+  }, []);
+
+  const handleRequestPermission = async () => {
+    const granted = await requestNotificationPermission();
+    setNotifPermission(granted ? "granted" : "denied");
+  };
+
+  // Drive in-page toasts. Global bell is handled by GlobalOrderTracker.
+  const handleToast = useCallback((n: StatusNotification) => {
+    setToasts((prev) => [...prev, n]);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
   // Phone-based active orders lookup
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneTrigger, setPhoneTrigger] = useState("");
@@ -101,8 +138,24 @@ export default function TrackPage() {
 
   const { data: order, isLoading } = trpc.order.getByNumber.useQuery(
     { orderNumber: searchTrigger },
-    { enabled: !!searchTrigger, refetchInterval: 30000 }
+    { enabled: !!searchTrigger, refetchInterval: 3000, staleTime: 0 }
   );
+
+  // Register this order globally so GlobalOrderTracker (in CustomerLayout) can
+  // keep polling it on every page and fire bell notifications instantly.
+  useEffect(() => {
+    if (order?.orderNumber) {
+      setTrackedOrderNumber(order.orderNumber);
+    }
+  }, [order?.orderNumber, setTrackedOrderNumber]);
+
+  // Detect status changes while the user IS on TrackPage → drive in-page toasts.
+  useOrderStatusChange({
+    orderNumber: order?.orderNumber,
+    status: order?.status as any,
+    lang,
+    onNotification: handleToast,
+  });
 
   const { data: reviewStatus, refetch: refetchReviewStatus } = trpc.customer.hasReviewedOrder.useQuery(
     { orderId: order?.id ?? 0 },
@@ -151,12 +204,6 @@ export default function TrackPage() {
 
   const currentStep = getCurrentStepIndex();
 
-  const canReview =
-    order &&
-    REVIEWABLE_STATUSES.has(order.status) &&
-    isAuthenticated &&
-    !reviewStatus?.reviewed &&
-    !reviewSubmitted;
 
   const alreadyReviewed = reviewStatus?.reviewed || reviewSubmitted;
 
@@ -183,6 +230,47 @@ export default function TrackPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold text-[#2D2420] mb-6">{t.trackYourOrder}</h2>
+
+      {/* ── Browser Notification Permission Banner ── */}
+      {"Notification" in window && notifPermission === "default" && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-5 flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[#C75C2E]/10 to-[#D4A017]/10 border border-[#D4C8B8] rounded-xl"
+        >
+          <div className="w-9 h-9 rounded-full bg-[#C75C2E]/15 flex items-center justify-center shrink-0">
+            <Bell size={17} className="text-[#C75C2E]" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-[#2D2420]">
+              {isAr ? "تلقّ إشعارات لحظية" : "Get live order updates"}
+            </p>
+            <p className="text-xs text-[#8B7A6E]">
+              {isAr
+                ? "فعّل الإشعارات لمتابعة حالة طلبك حتى وأنت بعيد عن الصفحة"
+                : "Enable notifications to stay updated even when away from this tab"}
+            </p>
+          </div>
+          <button
+            onClick={handleRequestPermission}
+            className="shrink-0 px-4 py-2 bg-[#C75C2E] text-white text-xs font-semibold rounded-xl hover:bg-[#A84A22] transition-colors"
+          >
+            {isAr ? "تفعيل" : "Enable"}
+          </button>
+        </motion.div>
+      )}
+
+      {/* ── Notification Permission Denied Notice ── */}
+      {"Notification" in window && notifPermission === "denied" && (
+        <div className="mb-5 flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl">
+          <BellOff size={16} className="text-gray-400 shrink-0" />
+          <p className="text-xs text-gray-500">
+            {isAr
+              ? "الإشعارات مُعطَّلة. يمكنك تفعيلها من إعدادات المتصفح."
+              : "Notifications are disabled. You can enable them from browser settings."}
+          </p>
+        </div>
+      )}
 
       {/* ── Phone-based Active Orders Lookup ── */}
       <div className="mb-8 bg-white rounded-2xl border border-[#E8DFD3] shadow-sm overflow-hidden">
@@ -284,17 +372,17 @@ export default function TrackPage() {
                             o.status === "delivered" ? "bg-emerald-50 text-emerald-600" :
                             "bg-gray-50 text-gray-500"
                           }`}>
-                            {isAr ? {
+                            {isAr ? ({
                               new: "جديد", accepted: "مقبول", preparing: "يُحضَّر",
                               ready: "جاهز", out_for_delivery: "في الطريق",
                               on_the_way: "في الطريق", driver_assigned: "سائق معيّن",
-                              delivered: "تم التوصيل",
-                            }[o.status] ?? o.status : {
+                              delivered: "تم التوصيل", completed: "مكتمل", cancelled: "ملغي",
+                            } as Record<string, string>)[o.status] ?? o.status : ({
                               new: "New", accepted: "Accepted", preparing: "Preparing",
                               ready: "Ready", out_for_delivery: "Out for Delivery",
                               on_the_way: "On the Way", driver_assigned: "Driver Assigned",
-                              delivered: "Delivered",
-                            }[o.status] ?? o.status}
+                              delivered: "Delivered", completed: "Completed", cancelled: "Cancelled",
+                            } as Record<string, string>)[o.status] ?? o.status}
                           </span>
                           <ArrowRight size={14} className="text-[#8B7A6E] group-hover:translate-x-0.5 transition-transform" />
                         </div>
@@ -677,6 +765,13 @@ export default function TrackPage() {
           </AnimatePresence>
         </motion.div>
       )}
+
+      {/* ── Toast Notifications Portal ── */}
+      <OrderStatusToast
+        notifications={toasts}
+        lang={lang}
+        onDismiss={dismissToast}
+      />
     </div>
   );
 }
