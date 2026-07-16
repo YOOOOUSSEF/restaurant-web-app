@@ -249,6 +249,7 @@ export const inventoryItems = mysqlTable("inventory_items", {
 export const recipes = mysqlTable("recipes", {
   id: serial("id").primaryKey(),
   productId: bigint("product_id", { mode: "number", unsigned: true }).references(() => products.id),
+  offerId: bigint("offer_id", { mode: "number", unsigned: true }).references(() => offers.id),
   inventoryItemId: bigint("inventory_item_id", { mode: "number", unsigned: true }).references(() => inventoryItems.id),
   quantityRequired: decimal("quantity_required", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),

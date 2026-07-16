@@ -213,11 +213,14 @@ export const inventoryRouter = createRouter({
 
   // Recipes
   listRecipes: publicQuery
-    .input(z.object({ productId: z.number() }).optional())
+    .input(z.object({ productId: z.number().optional(), offerId: z.number().optional() }).optional())
     .query(async ({ input }) => {
       const db = getDb();
       if (input?.productId) {
         return db.select().from(recipes).where(eq(recipes.productId, input.productId));
+      }
+      if (input?.offerId) {
+        return db.select().from(recipes).where(eq(recipes.offerId, input.offerId));
       }
       return db.select().from(recipes);
     }),
@@ -292,4 +295,92 @@ export const inventoryRouter = createRouter({
 
       return { ...rows[0], items };
     }),
+
+  // ── Recipe CRUD ───────────────────────────────────────────
+
+  /** Returns all recipe rows for a product or offer, joined with inventory item details */
+  listRecipesWithDetails: publicQuery
+    .input(z.object({ productId: z.number().optional(), offerId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const rows = input.productId
+        ? await db.select().from(recipes).where(eq(recipes.productId, input.productId))
+        : input.offerId
+          ? await db.select().from(recipes).where(eq(recipes.offerId, input.offerId))
+          : await db.select().from(recipes);
+
+      const result = [];
+      for (const row of rows) {
+        if (!row.inventoryItemId) continue;
+        const invRows = await db
+          .select()
+          .from(inventoryItems)
+          .where(eq(inventoryItems.id, row.inventoryItemId))
+          .limit(1);
+        result.push({
+          id: row.id,
+          productId: row.productId,
+          offerId: row.offerId,
+          inventoryItemId: row.inventoryItemId,
+          quantityRequired: row.quantityRequired,
+          inventoryItem: invRows[0] ?? null,
+        });
+      }
+      return result;
+    }),
+
+  /** Add an ingredient to a product or offer recipe */
+  createRecipe: publicQuery
+    .input(
+      z.object({
+        productId: z.number().optional(),
+        offerId: z.number().optional(),
+        inventoryItemId: z.number(),
+        quantityRequired: z.string().default("1.00"),
+      }).superRefine((value, ctx) => {
+        if (!value.productId && !value.offerId) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "productId or offerId is required" });
+        }
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const [created] = await db
+        .insert(recipes)
+        .values({
+          productId: input.productId ?? null,
+          offerId: input.offerId ?? null,
+          inventoryItemId: input.inventoryItemId,
+          quantityRequired: parseFloat(input.quantityRequired).toFixed(2),
+        })
+        .$returningId();
+      return { id: created?.insertId ?? null, success: true };
+    }),
+
+  /** Update the quantityRequired for a recipe row */
+  updateRecipe: publicQuery
+    .input(
+      z.object({
+        id: z.number(),
+        quantityRequired: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db
+        .update(recipes)
+        .set({ quantityRequired: parseFloat(input.quantityRequired).toFixed(2) })
+        .where(eq(recipes.id, input.id));
+      return { success: true };
+    }),
+
+  /** Remove an ingredient from a product recipe */
+  deleteRecipe: publicQuery
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.delete(recipes).where(eq(recipes.id, input.id));
+      return { success: true };
+    }),
 });
+

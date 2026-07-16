@@ -386,7 +386,6 @@ export default function InventoryPage() {
               <thead>
                 <tr className="bg-[#F5F0E8] text-[#5C4D44]">
                   <th className="text-left px-4 py-3 font-medium">{lang === "ar" ? "النوع" : "Type"}</th>
-                  <th className="text-left px-4 py-3 font-medium">{lang === "ar" ? "الكمية" : "Quantity"}</th>
                   <th className="text-left px-4 py-3 font-medium">{lang === "ar" ? "السبب" : "Reason"}</th>
                   <th className="text-left px-4 py-3 font-medium">{lang === "ar" ? "المرجع" : "Reference"}</th>
                   <th className="text-left px-4 py-3 font-medium">{lang === "ar" ? "الوقت" : "Time"}</th>
@@ -413,35 +412,6 @@ export default function InventoryPage() {
                             inventoryItemCode: m.inventoryItemCode,
                           }, lang === "ar" ? "ar" : "en")}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={movementQuantityInput[m.id] ?? String(m.quantity ?? "")}
-                          onChange={(e) => setMovementQuantityInput((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                          className="w-20 rounded border border-[#D4C8B8] px-2 py-1 text-sm"
-                        />
-                        <button
-                          onClick={() => {
-                            const parsed = parseFloat(movementQuantityInput[m.id] ?? String(m.quantity ?? "0"));
-                            if (Number.isNaN(parsed) || parsed < 0) return;
-                            updateMovement.mutate({
-                              id: m.id,
-                              quantity: parsed.toFixed(2),
-                              movementType: m.movementType,
-                              reason: m.reason ?? undefined,
-                              referenceType: m.referenceType ?? undefined,
-                              referenceId: m.referenceId ?? undefined,
-                            });
-                          }}
-                          className="rounded bg-[#4A7FB5] px-2 py-1 text-[11px] font-semibold text-white"
-                        >
-                          {lang === "ar" ? "حفظ" : "Save"}
-                        </button>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-[#5C4D44]">{m.reason || "-"}</td>

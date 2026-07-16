@@ -135,6 +135,10 @@ export const recipeRelations = relations(recipes, ({ one }) => ({
     fields: [recipes.productId],
     references: [products.id],
   }),
+  offer: one(offers, {
+    fields: [recipes.offerId],
+    references: [offers.id],
+  }),
   inventoryItem: one(inventoryItems, {
     fields: [recipes.inventoryItemId],
     references: [inventoryItems.id],

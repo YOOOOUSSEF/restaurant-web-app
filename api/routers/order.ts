@@ -62,6 +62,48 @@ function normalizePhoneDigits(value: string): string {
 
   return digits;
 }
+
+async function applyInventoryMovementsForOrder(
+  db: ReturnType<typeof getDb>,
+  order: typeof orders.$inferSelect,
+  items: typeof orderItems.$inferSelect[]
+) {
+  for (const item of items) {
+    const filter = item.productId
+      ? eq(recipes.productId, item.productId)
+      : item.offerId
+        ? eq(recipes.offerId, item.offerId)
+        : null;
+
+    if (!filter) continue;
+
+    const recipeRows = await db.select().from(recipes).where(filter);
+
+    for (const recipe of recipeRows) {
+      if (!recipe.inventoryItemId) continue;
+
+      const deductQty = parseFloat(recipe.quantityRequired || "0") * item.quantity;
+      if (deductQty <= 0) continue;
+
+      await db.insert(stockMovements).values({
+        inventoryItemId: recipe.inventoryItemId,
+        movementType: "out",
+        quantity: deductQty.toFixed(2),
+        reason: `Order ${order.orderNumber} – ${item.productNameEn} × ${item.quantity}`,
+        referenceType: "order",
+        referenceId: order.id,
+        createdBy: "system",
+      });
+
+      await db
+        .update(inventoryItems)
+        .set({
+          currentStock: sql`CAST(GREATEST(0, CAST(current_stock AS DECIMAL(10,2)) - ${deductQty.toFixed(2)}) AS DECIMAL(10,2))`,
+        })
+        .where(eq(inventoryItems.id, recipe.inventoryItemId));
+    }
+  }
+}
  
 export const orderRouter = createRouter({
   // List orders with filters
@@ -349,31 +391,6 @@ export const orderRouter = createRouter({
         notes: "Order placed",
       });
  
-      // Deduct inventory only for products with recipes
-      for (const item of input.items) {
-        if (item.itemType !== "product" || !item.productId) continue;
-        const recipeRows = await db.select().from(recipes).where(eq(recipes.productId, item.productId));
-        for (const recipe of recipeRows) {
-          if (!recipe.inventoryItemId) continue;
-          const qty = parseFloat(recipe.quantityRequired) * item.quantity;
-          await db.insert(stockMovements).values({
-            inventoryItemId: recipe.inventoryItemId,
-            movementType: "out",
-            quantity: qty.toFixed(2),
-            reason: `Order ${orderNumber}`,
-            referenceType: "order",
-            referenceId: orderId,
-          });
- 
-          await db
-            .update(inventoryItems)
-            .set({
-              currentStock: sql`CAST(current_stock AS DECIMAL(10,2)) - ${qty}`,
-            })
-            .where(eq(inventoryItems.id, recipe.inventoryItemId));
-        }
-      }
- 
       // Ensure customer exists without applying completed-order totals yet.
       const existingCustomer = await db
         .select()
@@ -506,7 +523,19 @@ export const orderRouter = createRouter({
         status: normalizedStatus,
         notes: input.notes ?? `Status updated to ${normalizedStatus}`,
       });
- 
+
+      // ── Auto-deduct inventory when the order is completed ──
+      // Deduction happens exactly once: on the completed transition.
+      if (shouldApplyCompletion) {
+        const order = orderRows[0];
+        const items = await db
+          .select()
+          .from(orderItems)
+          .where(eq(orderItems.orderId, input.id));
+
+        await applyInventoryMovementsForOrder(db, order, items);
+      }
+
       return { success: true };
     }),
  

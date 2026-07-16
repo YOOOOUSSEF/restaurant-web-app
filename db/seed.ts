@@ -275,6 +275,8 @@ async function seed() {
   if (offerRows.length > 0) {
     await db.insert(offers).values(offerRows);
   }
+  const seededOffers = await db.select({ id: offers.id, code: offers.code }).from(offers);
+  const offerIdByCode = new Map(seededOffers.map((offer) => [offer.code, offer.id] as const));
   console.log("Offers created");
 
   // 12. Tables
@@ -321,6 +323,16 @@ async function seed() {
     { productId: 6, inventoryItemId: 8, quantityRequired: "0.20" },
     { productId: 8, inventoryItemId: 9, quantityRequired: "0.10" },
     { productId: 10, inventoryItemId: 10, quantityRequired: "0.12" },
+  ]);
+
+  await db.insert(recipes).values([
+    { offerId: offerIdByCode.get("OFF-BURGER-MEAL") ?? 1, inventoryItemId: 1, quantityRequired: "0.15" },
+    { offerId: offerIdByCode.get("OFF-BURGER-MEAL") ?? 1, inventoryItemId: 3, quantityRequired: "1.00" },
+    { offerId: offerIdByCode.get("OFF-BURGER-MEAL") ?? 1, inventoryItemId: 8, quantityRequired: "1.00" },
+    { offerId: offerIdByCode.get("OFF-BURGER-MEAL") ?? 1, inventoryItemId: 9, quantityRequired: "0.10" },
+    { offerId: offerIdByCode.get("OFF-PIZZA-MEAL") ?? 2, inventoryItemId: 4, quantityRequired: "1.00" },
+    { offerId: offerIdByCode.get("OFF-PIZZA-MEAL") ?? 2, inventoryItemId: 2, quantityRequired: "0.20" },
+    { offerId: offerIdByCode.get("OFF-PIZZA-MEAL") ?? 2, inventoryItemId: 9, quantityRequired: "1.00" },
   ]);
   console.log("Recipes created");
 
